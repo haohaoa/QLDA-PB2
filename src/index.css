@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body,
+  #root {
+    touch-action: pan-x pan-y;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  font-family: inherit;
+}
+
+.contractor-route-label {
+  border: 0;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 5px rgb(15 23 42 / 30%);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  white-space: normal;
+  max-width: 180px;
+  text-align: center;
+}
+
+.contractor-route-label::before {
+  display: none;
+}
+
+.contractor-route-arrow {
+  border: 0;
+  background: transparent;
+}
+
+@media print {
+  header, footer, .print\:hidden, .leaflet-container {
+    display: none !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+}

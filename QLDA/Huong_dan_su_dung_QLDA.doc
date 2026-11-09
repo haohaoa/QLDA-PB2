@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="QLDA User Guide">
+<title>Hướng dẫn sử dụng hệ thống QLDA</title>
+<style>
+@page { size: A4; margin: 2cm 2cm 2cm 2.2cm; }
+body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; color: #1f2937; }
+h1 { color: #123b68; font-size: 25pt; margin: 0 0 8pt; }
+h2 { color: #123b68; font-size: 16pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 4pt; margin-top: 24pt; }
+h3 { color: #1d4ed8; font-size: 12.5pt; margin-top: 15pt; }
+p { margin: 5pt 0 8pt; }
+li { margin: 3pt 0; }
+table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt; }
+th, td { border: 1px solid #cbd5e1; padding: 6pt 7pt; vertical-align: top; }
+th { background: #eaf1f8; color: #123b68; text-align: left; }
+.cover { padding-top: 100pt; text-align: center; page-break-after: always; }
+.cover h1 { font-size: 30pt; }
+.subtitle { font-size: 16pt; color: #475569; }
+.meta { margin-top: 38pt; color: #64748b; font-size: 10pt; }
+.callout { border-left: 4px solid #2563eb; background: #eff6ff; padding: 9pt 12pt; margin: 10pt 0; }
+.warning { border-left: 4px solid #dc2626; background: #fef2f2; padding: 9pt 12pt; margin: 10pt 0; }
+.tip { border-left: 4px solid #d97706; background: #fffbeb; padding: 9pt 12pt; margin: 10pt 0; }
+.small { font-size: 9.5pt; color: #475569; }
+.code { font-family: Consolas, monospace; background: #f1f5f9; padding: 2pt 4pt; }
+.page { page-break-before: always; }
+</style>
+</head>
+<body>
+<div class="cover">
+  <p style="font-size:13pt;color:#2563eb;font-weight:bold;letter-spacing:2pt;">TÀI LIỆU VẬN HÀNH</p>
+  <h1>HƯỚNG DẪN SỬ DỤNG<br>HỆ THỐNG QLDA</h1>
+  <p class="subtitle">Quản lý và giám sát dự án ngầm hóa cáp viễn thông, lưới điện</p>
+  <p class="meta">Tài liệu dành cho người giám sát và quản trị viên<br>Biên soạn theo các chức năng có trong phiên bản mã nguồn hiện tại</p>
+</div>
+
+<h2>Mục đích và phạm vi</h2>
+<p>QLDA là ứng dụng web theo dõi danh mục dự án, tuyến thi công, phân công nhà thầu, nhật ký sản lượng theo ngày, tiến độ, thông báo hiện trường và biên bản sai phạm. Ứng dụng có thể triển khai dưới dạng Web app Google Apps Script (Google Apps Script, viết tắt GAS).</p>
+<p>Tài liệu này hướng dẫn các thao tác người dùng trên giao diện. Tên nút có thể thay đổi đôi chút theo kích thước màn hình hoặc bản triển khai.</p>
+
+<div class="warning"><strong>Lưu ý quan trọng về quyền truy cập:</strong> cấu hình Apps Script hiện đặt quyền truy cập Web app là công khai (ANYONE). API đọc dữ liệu cũng công khai, không cần khóa. Bất kỳ ai có URL đều có thể đọc các số liệu được API trả về. Mật khẩu Admin chỉ kiểm soát thao tác sửa qua giao diện, không làm dữ liệu API trở thành riêng tư. Hãy chỉ dùng chế độ này khi dữ liệu được phép công khai.</div>
+
+<h2>1. Tổng quan cách hoạt động</h2>
+<table>
+<tr><th>Thành phần</th><th>Vai trò</th></tr>
+<tr><td>Giao diện QLDA</td><td>Người dùng mở trên máy tính hoặc điện thoại để theo dõi và cập nhật dữ liệu.</td></tr>
+<tr><td>Google Sheets</td><td>Lưu bốn nhóm dữ liệu: dự án (Projects), nhật ký ngày (DailyLogs), thông báo (Bulletins), loại kế hoạch (PlanTypes).</td></tr>
+<tr><td>Google Drive</td><td>Lưu ảnh biên bản sai phạm do người dùng tải lên. Đường dẫn ảnh được lưu cùng nhật ký.</td></tr>
+<tr><td>API JSON</td><td>Cho hệ thống khác đọc dữ liệu đã lưu trong Google Sheets.</td></tr>
+</table>
+<p>Trong bản GAS, dữ liệu được tải từ Google Sheets khi mở ứng dụng. Khi người có quyền Admin thay đổi dữ liệu, ứng dụng tự lưu lại. Nếu thấy thông báo lỗi lưu dữ liệu, cần xử lý lỗi và kiểm tra lưu lại trước khi đóng trang.</p>
+<p>Nếu Google Sheets chưa được khởi tạo dữ liệu, giao diện có thể hiển thị dữ liệu khởi tạo mẫu của ứng dụng. API đọc dữ liệu đã lưu trong Sheets; vì vậy dữ liệu mẫu chỉ hiển thị trên giao diện chưa chắc đã có trong phản hồi API cho đến khi dữ liệu được lưu.</p>
+
+<h2>2. Quyền xem và quyền chỉnh sửa</h2>
+<h3>Người giám sát / người xem</h3>
+<ul>
+  <li>Có thể xem tổng quan, dự án, bản đồ, báo cáo, thông báo và hình ảnh mà tài khoản có quyền truy cập.</li>
+  <li>Không thể thêm, sửa hoặc xóa dữ liệu nếu chưa mở quyền Admin.</li>
+  <li>Trên giao diện, chọn <strong>Đăng nhập</strong> hoặc nút khóa, nhập mật khẩu chỉnh sửa do người quản trị thiết lập.</li>
+</ul>
+<h3>Quản trị viên</h3>
+<ul>
+  <li>Được tạo/sửa dự án, phân công nhà thầu, nhập/sửa/xóa nhật ký, quản lý thông báo và khôi phục dữ liệu.</li>
+  <li>Quyền đăng nhập được cấp bằng Script Property <span class="code">EDIT_PASSWORD</span> trong dự án Apps Script.</li>
+  <li>Phiên chỉnh sửa được lưu trên trình duyệt hiện tại và có thời hạn tối đa khoảng 6 giờ; đăng nhập lại nếu phiên hết hạn.</li>
+  <li>Dùng <strong>Khóa chỉnh sửa</strong> hoặc đăng xuất để đóng quyền trên trình duyệt đó. Việc này không thu hồi quyền truy cập dữ liệu công khai.</li>
+</ul>
+<div class="tip"><strong>Gợi ý:</strong> thao tác quản trị và nhập dữ liệu lớn thuận tiện hơn trên máy tính. Điện thoại phù hợp để xem nhanh, chụp ảnh hiện trường và lập nhật ký tại công trường.</div>
+
+<h2>3. Điều hướng các phân hệ</h2>
+<table>
+<tr><th>Phân hệ</th><th>Mục đích chính</th></tr>
+<tr><td>Tổng quan</td><td>Xem tình hình chung, khối lượng và tiến độ dự án, tiến độ nhà thầu, báo cáo chưa nộp và các thông tin điều hành nổi bật.</td></tr>
+<tr><td>Báo cáo</td><td>Chọn dự án, nhà thầu, ngày; xem nhật ký, lịch theo tháng, so sánh tuần; xuất hoặc nhập Excel.</td></tr>
+<tr><td>Bản đồ tuyến</td><td>Tìm dự án và xem tuyến theo các mốc tọa độ trên bản đồ GIS.</td></tr>
+<tr><td>Thông báo</td><td>Xem và quản lý thông tin hiện trường, hồ sơ pháp lý, thời tiết, tạm dừng, vướng hạ tầng và chỉ đạo khẩn cấp.</td></tr>
+<tr><td>Quản lý dự án</td><td>Quản lý loại kế hoạch và dự án, phân công nhà thầu/đoạn tuyến, trạng thái và sao lưu dữ liệu.</td></tr>
+</table>
+<p>Trên điện thoại, mở thanh điều hướng bằng nút menu. Các thao tác và tên phân hệ tương tự phiên bản máy tính.</p>
+
+<div class="page"></div>
+<h2>4. Khởi tạo danh mục dự án</h2>
+<h3>4.1. Tạo loại kế hoạch</h3>
+<ol>
+  <li>Mở <strong>Quản lý dự án</strong>, tìm phần <strong>Loại kế hoạch</strong>.</li>
+  <li>Nhập tên loại kế hoạch rồi chọn <strong>Thêm</strong>. Có thể dùng biểu tượng sửa/xóa ở từng loại để đổi tên hoặc xóa.</li>
+  <li>Không thể xóa loại đang được dự án sử dụng; cần đổi loại của dự án trước. Hệ thống cũng phải giữ lại ít nhất một loại.</li>
+</ol>
+<h3>4.2. Tạo dự án</h3>
+<ol>
+  <li>Chọn <strong>Tạo dự án mới</strong>.</li>
+  <li>Điền tên dự án, loại kế hoạch, chủ đầu tư, giá trị hợp đồng, ngày bắt đầu và ngày hoàn tất.</li>
+  <li>Đặt tên điểm đầu và điểm cuối. Trên bản đồ chọn loại mốc rồi nhấp để xác định tọa độ; thêm các điểm cua theo thứ tự tuyến. Hệ thống nối các mốc theo thứ tự đã khai báo.</li>
+  <li>Chọn lưu/khởi tạo dự án và xác nhận. Mã dự án được hệ thống tạo tự động.</li>
+  <li>Dự án mới chưa được phân công nhà thầu thì chưa thể lập nhật ký tiến độ.</li>
+</ol>
+<h3>4.3. Phân công nhà thầu và đoạn tuyến</h3>
+<ol>
+  <li>Trong thẻ dự án, mở phần <strong>Nhà thầu &amp; đoạn tuyến được giao</strong>.</li>
+  <li>Nhập tên nhà thầu, chọn mốc đầu và mốc cuối theo thứ tự trên tuyến, sau đó khai báo chiều dài, số hố ga và giá trị hợp đồng phần việc.</li>
+  <li>Đoạn tuyến mới nối tiếp từ điểm cuối của đoạn đã giao trước đó. Một đoạn không được giao trùng cho nhiều nhà thầu.</li>
+  <li>Lưu phân công. Với mỗi nhà thầu, hệ thống hiển thị đoạn tuyến, khối lượng hợp đồng, lũy kế nhật ký và đánh giá tiến độ.</li>
+  <li>Muốn thêm nhà thầu, tiếp tục chọn một đoạn chưa phân công. Có thể chỉnh sửa hoặc xóa nhà thầu nếu chưa có nhật ký gắn với nhà thầu đó.</li>
+</ol>
+<p>Sau khi nhà thầu đã có nhật ký, không thể đổi tên hoặc thay đoạn tuyến của nhà thầu đó để tránh làm mất liên kết lịch sử; không thể xóa nhà thầu có nhật ký.</p>
+<h3>4.4. Cập nhật trạng thái dự án</h3>
+<p>Dùng bộ lọc trạng thái để tìm dự án đang thực hiện, tạm ngưng hoặc hoàn tất. Quản trị viên có thể đổi trạng thái ngay trên thẻ dự án; cũng có thể mở biểu mẫu để chỉnh sửa thông tin và tọa độ dự án.</p>
+
+<h2>5. Lập nhật ký thi công hằng ngày</h2>
+<ol>
+  <li>Mở <strong>Báo cáo</strong>, chọn dự án. Có thể tìm theo tên, mã dự án hoặc nhà thầu; lọc theo loại kế hoạch. Dự án có nhiều nhà thầu có thể mở rộng để chọn đúng nhà thầu.</li>
+  <li>Chọn ngày trên lịch hoặc bộ chọn ngày. Ứng dụng chỉ cho nhập báo cáo trong khoảng thời gian triển khai dự án; không thể tạo nhật ký cho ngày tương lai.</li>
+  <li>Chọn <strong>Cập nhật báo cáo</strong> hoặc nút nhập nhanh. Nếu chưa đăng nhập Admin, hệ thống yêu cầu đăng nhập.</li>
+  <li>Trong biểu mẫu, kiểm tra ngày, dự án, nhà thầu; chọn <strong>Đi làm</strong> hoặc <strong>Nghỉ</strong>.</li>
+  <li>Nếu đi làm, ghi nguồn lực/đội thi công. Nếu nghỉ, ghi rõ lý do nghỉ.</li>
+  <li>Nhập khối lượng trong ngày: đào phui (m), lắp ống (m), đổ hố ga (hầm), hoàn trả mặt bằng (m). Nhập 0 nếu không phát sinh.</li>
+  <li>Điền tên giám sát, ghi chú hiện trường và thông tin ảnh nếu cần, sau đó chọn lưu.</li>
+</ol>
+<div class="callout"><strong>Lũy kế được hệ thống tính lại:</strong> lũy kế mương cáp dựa trên sản lượng đào trong ngày; nếu ngày đó không có sản lượng đào thì có thể dùng sản lượng lắp ống. Lũy kế hố ga dựa trên số hố ga đổ trong ngày. Khi thêm/sửa/xóa nhật ký cũ, các lũy kế tiếp theo của cùng dự án và nhà thầu được cập nhật theo lịch sử.</div>
+<p>Mỗi ngày/dự án/nhà thầu là một bản ghi báo cáo. Nếu nhập lại đúng tổ hợp này, dữ liệu được cập nhật thay vì tạo thêm báo cáo trùng. Kiểm tra kỹ dự án, nhà thầu và ngày trước khi lưu.</p>
+
+<h3>5.1. Lập biên bản sai phạm</h3>
+<ol>
+  <li>Bật lựa chọn <strong>Có lập biên bản xử lý</strong>.</li>
+  <li>Nhập mã biên bản, loại vi phạm, mô tả vị trí và hiện trạng, biện pháp yêu cầu khắc phục.</li>
+  <li>Chọn thời hạn 24, 48 hoặc 72 giờ; cập nhật trạng thái: đang chờ khắc phục, đã khắc phục hoặc từ chối nghiệm thu.</li>
+  <li>Chụp ảnh bằng camera điện thoại hoặc chọn tệp ảnh; định dạng hỗ trợ JPEG, PNG, WebP, GIF; dung lượng tối đa 8 MB mỗi ảnh.</li>
+  <li>Lưu nhật ký để gắn biên bản vào báo cáo. Ảnh tải lên Apps Script được lưu trong thư mục Drive do ứng dụng quản lý.</li>
+</ol>
+<p>Ảnh tải lên được chia sẻ ở chế độ <strong>bất kỳ ai có liên kết đều xem được</strong>. Không tải ảnh cá nhân, ảnh nhạy cảm hoặc ảnh không được phép chia sẻ công khai.</p>
+<p>Trong báo cáo, chọn mã biên bản/ảnh để xem chi tiết. Ảnh có thể mở toàn màn hình. Nếu thay hoặc hủy ảnh chưa lưu, ứng dụng sẽ cố gắng dọn ảnh mới khỏi Drive.</p>
+
+<h2>6. Tra cứu, báo cáo và Excel</h2>
+<h3>6.1. Xem báo cáo ngày</h3>
+<ul>
+  <li>Lọc theo dự án, nhà thầu và ngày; chuyển tháng bằng lịch để xem lại lịch sử.</li>
+  <li>Thẻ cảnh báo cho biết nhà thầu chưa báo cáo trong ngày. Chọn nhà thầu còn thiếu để mở biểu mẫu báo cáo tương ứng (cần quyền Admin).</li>
+  <li>Bảng báo cáo hiển thị nguồn lực, sản lượng ngày, lũy kế/khối lượng hợp đồng, ghi chú và biên bản sai phạm.</li>
+  <li>Quản trị viên có thể sửa hoặc xóa nhật ký. Xóa cần xác nhận; lũy kế của các ngày sau được tính cập nhật.</li>
+</ul>
+<h3>6.2. Gửi báo cáo qua Zalo và xuất Excel</h3>
+<ul>
+  <li>Chọn bộ lọc và ngày cần gửi, sau đó bấm <strong>Zalo</strong> để sao chép nội dung báo cáo tóm tắt vào clipboard; dán vào Zalo hoặc ứng dụng khác.</li>
+  <li>Bấm <strong>Xuất Excel</strong> để tải báo cáo ngày đang lọc. Tệp gồm thông tin dự án/nhà thầu, nguồn lực, sản lượng và lũy kế.</li>
+  <li>Bấm <strong>Tải mẫu Excel</strong> để lấy bảng trống dùng nhập nhiều báo cáo; hoặc trong chế độ tuần chọn dự án và tải mẫu dự án có lịch sử trước ngày hiện tại.</li>
+</ul>
+<h3>6.3. So sánh tuần và nhập nhật ký bằng Excel</h3>
+<ol>
+  <li>Chuyển chế độ sang <strong>So sánh tuần</strong>. Ứng dụng so sánh khối lượng tuần hiện tại (từ thứ Hai đến hôm nay) với tuần trước, gồm khối lượng tuyến, ống lắp, hoàn trả và hầm/hố ga.</li>
+  <li>Để nhập lịch sử cho dự án, chọn dự án và tải mẫu dự án. Mẫu chứa nhật ký đã có đến trước ngày hiện tại; điền vào các dòng cần nhập theo đúng cột.</li>
+  <li>Chọn <strong>Nhập Excel</strong>/<strong>Nhập nhật ký</strong> và tải tệp .xlsx đã điền. Dòng để trống được bỏ qua; hệ thống đọc mã dự án, tên dự án, nhà thầu và ngày để đối chiếu.</li>
+  <li>Trước khi cập nhật, hộp thoại cho biết số bản ghi mới và số bản ghi sẽ cập nhật. Bản ghi trùng ngày/dự án/nhà thầu sẽ được cập nhật. Xác nhận chỉ sau khi kiểm tra tệp.</li>
+</ol>
+<p>Nhập Excel yêu cầu quyền Admin và dự án phải có nhà thầu được phân công. Không đổi tên tiêu đề/cột trong mẫu; kiểm tra định dạng ngày (YYYY-MM-DD), đơn vị và mã dự án trước khi tải lên.</p>
+
+<div class="page"></div>
+<h2>7. Xem tiến độ và đánh giá nhà thầu</h2>
+<ul>
+  <li><strong>Tổng quan</strong> hiển thị tổng hợp tiến độ dự án, lũy kế mương cáp/hố ga, trạng thái nhà thầu, tình hình báo cáo và thông tin điều hành.</li>
+  <li>Tiến độ tổng hợp của dự án được tính theo trung bình tỷ lệ hoàn thành mương cáp và tỷ lệ hoàn thành hầm/hố ga.</li>
+  <li>Ở thẻ nhà thầu, các số liệu như ngày làm/nghỉ, tổng đào, trung bình theo ngày/tuần/tháng, khối lượng còn lại và khối lượng cần đạt được suy ra từ nhật ký và hạn hoàn tất của dự án.</li>
+  <li>Đánh giá có thể là: hoàn thành, đúng tiến độ, có nguy cơ trễ, đã quá hạn hoặc chưa đủ dữ liệu. Đây là chỉ báo tính toán từ số liệu hiện có, không thay thế xác nhận nghiệm thu.</li>
+</ul>
+<div class="tip">Để đánh giá có ý nghĩa, cần nhập ngày báo cáo, sản lượng, nhà thầu và ngày hoàn tất chính xác. Nếu báo cáo nghỉ, chọn đúng trạng thái nghỉ và nhập lý do.</div>
+
+<h2>8. Bản đồ tuyến GIS</h2>
+<ol>
+  <li>Mở <strong>Bản đồ tuyến</strong>; tìm dự án theo tên/mã/nhà thầu hoặc lọc theo loại kế hoạch.</li>
+  <li>Chọn dự án để xem tuyến được nối qua các điểm đầu, điểm cua và điểm cuối đã khai báo.</li>
+  <li>Dùng bản đồ để đối chiếu tuyến, vị trí thi công hiện tại và mốc tọa độ. Có thể mở bản đồ một dự án từ thẻ dự án/tổng quan.</li>
+  <li>Nếu tọa độ hoặc thứ tự mốc sai, Admin sửa dự án trong <strong>Quản lý dự án</strong>. Không đảo/xóa mốc đầu-cuối đang được dùng cho phân đoạn nhà thầu.</li>
+</ol>
+
+<h2>9. Thông báo hiện trường</h2>
+<ol>
+  <li>Mở <strong>Thông báo</strong> để xem các tin áp dụng toàn hệ thống hoặc theo từng dự án.</li>
+  <li>Dùng bộ lọc dự án và danh mục: tạm dừng thi công, hồ sơ pháp lý/giấy phép, thời tiết, vướng hạ tầng hoặc chỉ đạo khẩn cấp.</li>
+  <li>Admin chọn <strong>Tạo Thông Báo / Cảnh Báo Mới</strong>, nhập tiêu đề, phạm vi dự án, danh mục, số hiệu hồ sơ (nếu có), mức độ, ngày, người lập và nội dung/phương án.</li>
+  <li>Lưu để đăng. Có thể sửa, xóa hoặc bật/tắt hiệu lực thông báo. Thẻ thông báo phân biệt mức khẩn cấp/cảnh báo/thông báo và trạng thái đang hiệu lực/đã đóng.</li>
+</ol>
+<p>Nên ghi rõ thời gian bắt đầu/kết thúc, khu vực ảnh hưởng và hành động yêu cầu. Thông báo đóng hồ sơ vẫn có thể được lưu để tra cứu lịch sử.</p>
+
+<h2>10. Sao lưu và khôi phục dữ liệu</h2>
+<h3>Xuất bản sao lưu</h3>
+<ol>
+  <li>Mở <strong>Quản lý dự án → Sao lưu &amp; khôi phục dữ liệu</strong>.</li>
+  <li>Chọn <strong>Xuất toàn bộ ra Excel</strong>. Tệp .xlsx bao gồm dự án, nhật ký, thông báo và loại kế hoạch.</li>
+  <li>Lưu tệp ở nơi an toàn, có quyền truy cập giới hạn. Nên tạo bản sao lưu trước khi nhập lịch sử lớn hoặc khôi phục.</li>
+</ol>
+<h3>Khôi phục từ bản sao lưu</h3>
+<ol>
+  <li>Đăng nhập Admin, chọn <strong>Nhập tệp sao lưu</strong> và chọn tệp do QLDA xuất.</li>
+  <li>Kiểm tra kỹ xác nhận trên màn hình. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại, không phải nối thêm.</li>
+  <li>Chờ thông báo kết quả số lượng dự án, nhật ký, thông báo và loại kế hoạch đã khôi phục; kiểm tra lại các phân hệ.</li>
+</ol>
+<div class="warning"><strong>Không mở/sửa cấu trúc các trang tính kỹ thuật trong tệp sao lưu.</strong> Nếu chọn nhầm tệp hoặc khôi phục nhầm phiên bản, dữ liệu đang có sẽ bị thay. Hãy xuất một bản sao lưu mới trước khi khôi phục.</div>
+
+<h2>11. API JSON cho hệ thống tích hợp</h2>
+<p>API chỉ đọc, công khai và không yêu cầu khóa. Dùng URL Web app đã triển khai:</p>
+<table>
+<tr><th>Yêu cầu</th><th>Phản hồi</th></tr>
+<tr><td><span class="code">GET /exec?action=getData</span></td><td>Toàn bộ số liệu: projects, dailyLogs, bulletins, planTypes; kèm counts, thời gian tạo phản hồi và trạng thái khởi tạo.</td></tr>
+<tr><td><span class="code">GET /exec?action=getProjects</span></td><td>Danh sách dự án cùng imageLinks; không trả các bộ sưu tập nhật ký/thông báo/loại kế hoạch.</td></tr>
+<tr><td>POST JSON <span class="code">{"action":"getData"}</span></td><td>Tương đương GET getData.</td></tr>
+<tr><td>POST JSON <span class="code">{"action":"getProjects"}</span></td><td>Tương đương GET getProjects.</td></tr>
+</table>
+<p>Ví dụ PowerShell:</p>
+<p class="code">Invoke-RestMethod -Method Get -Uri "YOUR_WEB_APP_URL/exec?action=getData"</p>
+<p>Ví dụ phản hồi getData:</p>
+<pre style="white-space:pre-wrap;background:#f1f5f9;padding:10pt;border:1px solid #cbd5e1;">{
+  "success": true,
+  "generatedAt": "2026-11-06T03:00:00.000Z",
+  "count": 1,
+  "projects": [
+    { "id": "project-id", "name": "Tên dự án", "imageLinks": [] }
+  ],
+  "isInitialized": true,
+  "counts": { "projects": 1, "dailyLogs": 1, "bulletins": 0, "planTypes": 1 },
+  "dailyLogs": [],
+  "bulletins": [],
+  "planTypes": []
+}</pre>
+<p><span class="code">imageLinks</span> là danh sách URL ảnh dự án, ảnh nhật ký và ảnh sai phạm gắn theo dự án; API trả liên kết chứ không nhúng dữ liệu ảnh nhị phân/base64. Quyền xem ảnh còn phụ thuộc cài đặt chia sẻ Google Drive.</p>
+<div class="warning"><strong>API là public:</strong> không đưa thông tin cá nhân, tài liệu nội bộ hoặc số liệu mật vào dữ liệu triển khai nếu không được phép công khai. Không coi mật khẩu Admin là lớp bảo vệ API.</div>
+
+<h2>12. Khắc phục sự cố thường gặp</h2>
+<table>
+<tr><th>Hiện tượng</th><th>Cách xử lý</th></tr>
+<tr><td>Trang báo không kết nối/đọc được Sheets</td><td>Kiểm tra Web app đã chạy đúng tài khoản triển khai, đã cấp quyền Sheets/Drive, Script Property SPREADSHEET_ID có tồn tại và Apps Script đã được cấp quyền cần thiết.</td></tr>
+<tr><td>Không sửa được hoặc bị yêu cầu đăng nhập</td><td>Nhập đúng EDIT_PASSWORD. Nếu phiên hết hạn, đăng nhập lại. Kiểm tra quản trị viên đã cấu hình Script Property này.</td></tr>
+<tr><td>Thay đổi không lưu</td><td>Đọc thông báo lỗi màu đỏ trên trang, bấm thử lưu lại nếu có, kiểm tra quyền truy cập Sheets/kết nối Internet và xác nhận số liệu đã cập nhật trước khi rời trang.</td></tr>
+<tr><td>Không nhập được nhật ký cho dự án</td><td>Kiểm tra dự án đã được phân công nhà thầu, ngày nằm trong kỳ triển khai, không phải ngày tương lai và tệp Excel dùng đúng mẫu/cột.</td></tr>
+<tr><td>Link /exec hiển thị giao diện</td><td>Đây là hành vi bình thường nếu URL không có action API. Thêm <span class="code">?action=getData</span> để nhận JSON; chỉ dùng action được hỗ trợ.</td></tr>
+<tr><td>API trả JSON rỗng trong khi giao diện có dữ liệu mẫu</td><td>API đọc số liệu đã lưu trong Sheets, không nhất thiết đọc dữ liệu khởi tạo mẫu đang chỉ được hiển thị trên giao diện. Đăng nhập Admin, lưu dữ liệu hợp lệ vào Sheets, rồi gọi lại API.</td></tr>
+<tr><td>Không xem được ảnh qua URL</td><td>Kiểm tra ảnh đã được tải lên Drive, URL còn hợp lệ và quyền chia sẻ ảnh cho phép người xem hiện tại.</td></tr>
+</table>
+
+<h2>13. Danh sách kiểm tra cuối ngày</h2>
+<ol>
+  <li>Kiểm tra các dự án đang hoạt động và từng nhà thầu đã nộp nhật ký.</li>
+  <li>Rà soát sản lượng đào, lắp ống, hoàn trả và hố ga; bảo đảm đơn vị/nhà thầu/ngày chính xác.</li>
+  <li>Kiểm tra các ngày nghỉ có lý do; xử lý biên bản sai phạm và cập nhật trạng thái khắc phục.</li>
+  <li>Đọc thông báo hiện trường còn hiệu lực; đóng hoặc cập nhật khi đã giải quyết.</li>
+  <li>Kiểm tra không có lỗi lưu dữ liệu. Xuất báo cáo ngày hoặc gửi nội dung Zalo nếu cần.</li>
+  <li>Định kỳ xuất tệp sao lưu và lưu ở vị trí được bảo vệ.</li>
+</ol>
+
+<p class="small" style="margin-top:28pt;border-top:1px solid #cbd5e1;padding-top:8pt;">Tài liệu được biên soạn từ mã nguồn QLDA trong workspace tại thời điểm tạo. Giao diện và chức năng có thể thay đổi khi triển khai phiên bản mới; hãy đối chiếu các nút trên phiên bản đang sử dụng.</p>
+</body>
+</html>

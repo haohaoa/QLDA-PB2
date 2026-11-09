@@ -1,0 +1,6 @@
+{
+  "name": "Quản lý Dự án Ngầm hóa Cáp Viễn thông & Điện",
+  "description": "Hệ thống quản lý, giám sát nhật ký thi công, bản đồ GIS tuyến đường và báo cáo khối lượng ngầm hóa cáp viễn thông, lưới điện.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
