@@ -98,17 +98,32 @@ function getWeekRange(dateKey: string, weekOffset = 0): { start: string; end: st
   return { start: toDateKey(start), end: toDateKey(end) };
 }
 
-function isRainStoppage(log: Pick<DailyLogEntry, 'resources' | 'stoppageReason'>): boolean {
-  return /mưa|bão|ngập|triều cường|thời tiết/i.test(
-    `${log.resources} ${log.stoppageReason || ''}`
-  );
+function getStoppageReason(log: Pick<DailyLogEntry, 'resources' | 'stoppageReason'>): string {
+  const resources = log.resources || '';
+  const rawReason = log.stoppageReason?.trim() || '';
+  const source = rawReason || resources;
+  return source
+    .replace(/^\s*(?:tạm\s+nghỉ|nghỉ(?:\s+(?:do|vì))?|dừng|ngưng)\s*[:：-]?\s*/i, '')
+    .trim();
 }
 
 function getResourceDescription(log: Pick<DailyLogEntry, 'resources' | 'stoppageReason'>): string {
-  if (log.stoppageReason && !log.resources.toLowerCase().includes(log.stoppageReason.toLowerCase())) {
-    return `${log.resources} · ${log.stoppageReason}`;
+  const resources = log.resources || '';
+  if (isStoppedLog(log)) {
+    return `Nghỉ: ${getStoppageReason(log) || 'chưa ghi lý do'}`;
   }
-  return log.resources;
+  const stoppageReason = log.stoppageReason?.trim();
+  if (stoppageReason && !resources.toLocaleLowerCase().includes(stoppageReason.toLocaleLowerCase())) {
+    return resources ? `${resources} · ${stoppageReason}` : stoppageReason;
+  }
+  return resources || stoppageReason || 'Chưa ghi nguồn lực';
+}
+
+function isStoppedLog(log: Pick<DailyLogEntry, 'resources' | 'stoppageReason'>): boolean {
+  return (
+    !!log.stoppageReason?.trim() ||
+    /nghỉ|tạm nghỉ|dừng|ngưng|không thi công/i.test(log.resources || '')
+  );
 }
 
 const PROJECT_PICKER_PAGE_SIZE = 20;
@@ -341,10 +356,6 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   const filteredLogs = dailyLogs
     .filter((log) => (selectedProjectId === 'all' ? true : log.projectId === selectedProjectId))
     .filter((log) => log.date === selectedDate)
-    .filter((log) => {
-      const project = projectById.get(log.projectId);
-      return !!project && isProjectActiveOnDate(project, log.date);
-    })
     .filter((log) =>
       selectedContractorKey === 'all' ||
       getContractorKey(log.contractorName) === selectedContractorKey
@@ -366,19 +377,16 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   // Team resources for selected date
   let trenchTeams = 0;
   let drillingTeams = 0;
-  let weatherStoppedTeams = 0;
-  let obstacleStoppedTeams = 0;
+  let stoppedTeams = 0;
   let violationsCountToday = 0;
 
   filteredLogs.forEach((log) => {
     if (log.violationReport?.hasViolation) {
       violationsCountToday += 1;
     }
-    const res = log.resources.toLowerCase();
-    if (isRainStoppage(log)) {
-      weatherStoppedTeams += 1;
-    } else if (`${res} ${log.stoppageReason || ''}`.toLowerCase().includes('vướng')) {
-      obstacleStoppedTeams += 1;
+    const res = (log.resources || '').toLocaleLowerCase();
+    if (isStoppedLog(log)) {
+      stoppedTeams += 1;
     } else {
       if (res.includes('đào')) {
         const match = res.match(/(\d+)\s*đội đào/);
@@ -668,33 +676,50 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
       .filter((log) =>
         selectedContractorKey === 'all' ||
         getContractorKey(log.contractorName) === selectedContractorKey
-      )
-      .filter((log) => {
-        const project = projectById.get(log.projectId);
-        return !!project && isProjectActiveOnDate(project, dateStr);
-      });
+      );
 
     if (dayLogs.length === 0) return { status: 'none', label: 'Chưa có báo cáo', count: 0, hasViolation: false };
 
-    const hasRainStop = dayLogs.some(isRainStoppage);
     const hasObstacle = dayLogs.some(
-      (log) => `${log.resources} ${log.stoppageReason || ''}`.toLowerCase().includes('vướng')
+      (log) => `${log.resources || ''} ${log.stoppageReason || ''}`.toLocaleLowerCase().includes('vướng')
     );
+    const hasStopped = dayLogs.some(isStoppedLog);
     const hasViolation = dayLogs.some((l) => l.violationReport?.hasViolation);
     const hasActiveWork = dayLogs.some(
-      (l) => l.excavationTodayM > 0 || l.chambersPouredToday > 0 || l.resources.includes('đội')
+      (log) =>
+        getDailyTrenchOutput(log) > 0 ||
+        (log.chambersPouredToday || 0) > 0 ||
+        (log.restoredTodayM || 0) > 0 ||
+        (log.resources || '').toLocaleLowerCase().includes('đội')
     );
+    const stoppageDescriptions = [...new Set(
+      dayLogs
+        .filter(
+          (log) =>
+            isStoppedLog(log) ||
+            `${log.resources || ''} ${log.stoppageReason || ''}`.toLocaleLowerCase().includes('vướng')
+        )
+        .map(getStoppageReason)
+        .filter(Boolean)
+    )];
+    const reasonSummary = stoppageDescriptions.join('; ');
 
-    if (hasActiveWork && !hasRainStop) {
-      return { status: 'working', label: 'Có thi công', count: dayLogs.length, hasViolation };
+    if (hasActiveWork && !hasStopped && !hasObstacle) {
+      return {
+        status: 'working',
+        label: `Thi công (${dayLogs.length})`,
+        count: dayLogs.length,
+        hasViolation,
+      };
     }
-    if (hasRainStop) {
-      return { status: 'rain', label: 'Nghỉ mưa bão', count: dayLogs.length, hasViolation };
-    }
-    if (hasObstacle) {
-      return { status: 'obstacle', label: 'Nghỉ vướng', count: dayLogs.length, hasViolation };
-    }
-    return { status: 'off', label: 'Nghỉ', count: dayLogs.length, hasViolation };
+    return {
+      status: 'off',
+      label: hasActiveWork
+        ? `Thi công / Nghỉ: ${reasonSummary || 'chưa ghi lý do'}`
+        : `Nghỉ: ${reasonSummary || (hasObstacle ? 'vướng mặt bằng' : 'chưa ghi lý do')}`,
+      count: dayLogs.length,
+      hasViolation,
+    };
   };
 
   const WEEKS_LIST = buildScheduleWeeks(scheduleBounds, TODAY_STR);
@@ -2076,7 +2101,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                               );
                             }
 
-                            const isRain = isRainStoppage(log);
+                            const isStopped = isStoppedLog(log);
                             const hasViol = log.violationReport?.hasViolation;
 
                             return (
@@ -2091,7 +2116,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                   className={`w-full text-left p-1.5 rounded-lg border text-[10px] transition-all hover:ring-1 hover:ring-blue-500 ${
                                     hasViol
                                       ? 'bg-red-50 border-red-300 text-red-950 ring-1 ring-red-400'
-                                      : isRain
+                                      : isStopped
                                       ? 'bg-amber-50 border-amber-200 text-amber-900'
                                       : 'bg-slate-50 border-slate-200 text-slate-800'
                                   }`}
@@ -2165,7 +2190,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <span className="text-amber-800 font-semibold">Nghỉ mưa bão</span>
+                  <span className="text-amber-800 font-semibold">Nghỉ: lý do</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
@@ -2201,7 +2226,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 const isToday = cell.dateStr === TODAY_STR;
                 const isFuture = cell.dateStr > TODAY_STR;
                 const hasViolation = dayStatus.hasViolation;
-                const isInSchedule = isDateInSchedule(cell.dateStr);
+                const isInSchedule = isDateInSchedule(cell.dateStr) || dayStatus.count > 0;
 
                 return (
                   <div
@@ -2266,10 +2291,8 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         </span>
                       ) : dayStatus.status === 'working' ? (
                         <span className="w-2 h-2 rounded-full bg-emerald-500" title="Có thi công" />
-                      ) : dayStatus.status === 'rain' ? (
-                        <span className="w-2 h-2 rounded-full bg-amber-500" title="Nghỉ do mưa lớn" />
-                      ) : dayStatus.status === 'obstacle' ? (
-                        <span className="w-2 h-2 rounded-full bg-red-500" title="Vướng mặt bằng" />
+                      ) : dayStatus.status === 'off' ? (
+                        <span className="w-2 h-2 rounded-full bg-amber-500" title={dayStatus.label} />
                       ) : null}
                     </div>
 
@@ -2286,33 +2309,43 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       ) : hasViolation ? (
                         <button
                           type="button"
-                          className="flex min-h-7 w-full min-w-0 items-center justify-center gap-1 truncate rounded border border-red-300/80 bg-red-200/80 px-1 py-0.5 text-left font-black text-red-950 hover:bg-red-300"
-                          title="Nhấp để xem biên bản vi phạm và ảnh hiện trường"
+                          className="flex min-h-7 w-full min-w-0 flex-col items-start justify-center truncate rounded border border-red-300/80 bg-red-200/80 px-1 py-0.5 text-left font-black text-red-950 hover:bg-red-300"
+                          title={`${dayStatus.label} · Nhấp để xem biên bản vi phạm và ảnh hiện trường`}
                           aria-label="Xem biên bản vi phạm"
                         >
-                          <Camera className="h-3 w-3 shrink-0 text-red-700" />
-                          <span className="hidden truncate text-[9px] sm:inline">Sai phạm</span>
+                          <span className="flex items-center gap-1">
+                            <Camera className="h-3 w-3 shrink-0 text-red-700" />
+                            <span className="truncate text-[9px]">Sai phạm</span>
+                          </span>
+                          {dayStatus.status !== 'working' && (
+                            <span className="hidden w-full truncate text-[8px] font-semibold sm:block">
+                              {dayStatus.label}
+                            </span>
+                          )}
                         </button>
                       ) : dayStatus.status === 'working' ? (
                         <button
                           type="button"
                           className="min-h-7 w-full min-w-0 truncate text-center sm:text-left"
+                          title={dayStatus.label}
+                          aria-label={dayStatus.label}
                         >
                           <span className="block truncate font-semibold text-emerald-700">
                             <span className="sm:hidden">Làm</span>
-                            <span className="hidden sm:inline">Thi công ({dayStatus.count})</span>
+                            <span className="hidden sm:inline">{dayStatus.label}</span>
                           </span>
                         </button>
-                      ) : dayStatus.status === 'rain' ? (
-                        <button
-                          type="button"
-                          className="min-h-7 w-full min-w-0 truncate text-center sm:text-left"
+                      ) : dayStatus.status === 'off' ? (
+                        <span
+                          className={`block min-h-7 w-full min-w-0 truncate py-1 text-center font-bold sm:text-left ${
+                            'text-amber-700'
+                          }`}
+                          title={dayStatus.label}
+                          aria-label={dayStatus.label}
                         >
-                          <span className="block truncate font-bold text-amber-700">
-                            <span className="sm:hidden">Mưa</span>
-                            <span className="hidden sm:inline">Nghỉ mưa bão</span>
-                          </span>
-                        </button>
+                          <span className="sm:hidden">Nghỉ</span>
+                          <span className="hidden sm:inline">{dayStatus.label}</span>
+                        </span>
                       ) : dayStatus.status === 'none' ? (
                         isFuture ? (
                           /* CHƯA ĐẾN NGÀY: ẨN ĐI NÚT BÁO CÁO */
@@ -2368,9 +2401,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   Lực lượng huy động:{' '}
                   <strong className="text-blue-600 font-mono text-sm">{totalActiveTeams} đội làm việc</strong>
                 </span>
-                {weatherStoppedTeams > 0 && (
+                {stoppedTeams > 0 && (
                   <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    {weatherStoppedTeams} đội nghỉ mưa bão
+                    {stoppedTeams} đội nghỉ
                   </span>
                 )}
               </div>
@@ -2615,7 +2648,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         row.contractTrenchM > 0
                           ? ((row.cumulativeTrenchM / row.contractTrenchM) * 100).toFixed(1)
                           : '0.0';
-                      const isRain = isRainStoppage(row);
+                      const isStopped = isStoppedLog(row);
                       const viol = row.violationReport;
                       const violationPhotoUrls = getViolationPhotoUrls(viol);
                       const dailyPhotoUrls = getDailyLogPhotoUrls(row);
@@ -2626,7 +2659,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                           className={`hover:bg-blue-50/30 transition-colors ${
                             viol?.hasViolation
                               ? 'bg-red-50/60 text-red-950'
-                              : isRain
+                              : isStopped
                               ? 'bg-amber-50/40 text-amber-900'
                               : ''
                           }`}
@@ -2644,7 +2677,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                             <div>
                               <span
                                 className={`inline-block px-2 py-0.5 rounded text-xs ${
-                                  isRain
+                                  isStopped
                                     ? 'bg-amber-100 text-amber-900 font-semibold'
                                     : 'text-slate-800'
                                 }`}
