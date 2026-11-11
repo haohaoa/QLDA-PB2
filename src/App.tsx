@@ -13,6 +13,7 @@ import { BulletinsBoard } from './components/BulletinsBoard';
 import { ProjectManagement } from './components/ProjectManagement';
 import { SupervisorFormModal } from './components/SupervisorFormModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { useAppDialog } from './components/AppDialogProvider';
 import {
   INITIAL_PROJECTS,
   INITIAL_DAILY_LOGS,
@@ -147,6 +148,7 @@ function mergeSnapshots(
 }
 
 export default function App() {
+  const { showAlert, showConfirm } = useAppDialog();
   const shouldReduceMotion = useReducedMotion();
   const isAppsScript = isGoogleAppsScript();
   const today = getCurrentDateKey();
@@ -388,7 +390,7 @@ export default function App() {
     saveRetry,
   ]);
 
-  const confirmChange = (action: string) => window.confirm(`Bạn có chắc chắn muốn ${action} không?`);
+  const confirmChange = (action: string) => showConfirm(`Bạn có chắc chắn muốn ${action} không?`);
 
   // Calculate today unsubmitted project count
   const activeProjectsToday = projects.filter((project) => isProjectActiveOnDate(project, today));
@@ -495,9 +497,9 @@ export default function App() {
       const previousLog = currentEditingLog;
       if (
         !confirmed &&
-        !confirmChange(
+        !(await confirmChange(
           `${previousLog ? 'cập nhật' : 'thêm'} báo cáo ngày ${entryData.date} của dự án ${entryData.projectName}`
-        )
+        ))
       ) {
         return false;
       }
@@ -590,17 +592,17 @@ export default function App() {
     throw new Error('Dữ liệu đang thay đổi liên tục. Vui lòng thử lưu báo cáo lại.');
   };
 
-  const handleAddPlanType = (planType: PlanType): boolean => {
+  const handleAddPlanType = async (planType: PlanType): Promise<boolean> => {
     if (planTypes.some((item) => item.name.trim().toLocaleLowerCase() === planType.name.trim().toLocaleLowerCase())) {
-      window.alert('Loại kế hoạch này đã tồn tại.');
+      await showAlert('Loại kế hoạch này đã tồn tại.');
       return false;
     }
-    if (!confirmChange(`thêm loại kế hoạch “${planType.name}”`)) return false;
+    if (!(await confirmChange(`thêm loại kế hoạch “${planType.name}”`))) return false;
     setPlanTypes((prev) => [...prev, planType]);
     return true;
   };
 
-  const handleUpdatePlanType = (updatedPlanType: PlanType): boolean => {
+  const handleUpdatePlanType = async (updatedPlanType: PlanType): Promise<boolean> => {
     if (
       planTypes.some(
         (item) =>
@@ -608,31 +610,31 @@ export default function App() {
           item.name.trim().toLocaleLowerCase() === updatedPlanType.name.trim().toLocaleLowerCase()
       )
     ) {
-      window.alert('Loại kế hoạch này đã tồn tại.');
+      await showAlert('Loại kế hoạch này đã tồn tại.');
       return false;
     }
-    if (!confirmChange(`đổi tên loại kế hoạch thành “${updatedPlanType.name}”`)) return false;
+    if (!(await confirmChange(`đổi tên loại kế hoạch thành “${updatedPlanType.name}”`))) return false;
     setPlanTypes((prev) => prev.map((item) => (item.id === updatedPlanType.id ? updatedPlanType : item)));
     return true;
   };
 
-  const handleDeletePlanType = (planTypeId: string): boolean => {
+  const handleDeletePlanType = async (planTypeId: string): Promise<boolean> => {
     const planType = planTypes.find((item) => item.id === planTypeId);
     if (!planType || planTypeId === UNCLASSIFIED_PLAN_TYPE.id || planTypes.length <= 1) return false;
-    if (!confirmChange(`xóa loại kế hoạch “${planType.name}”`)) return false;
+    if (!(await confirmChange(`xóa loại kế hoạch “${planType.name}”`))) return false;
     setPlanTypes((prev) => prev.filter((item) => item.id !== planTypeId));
     return true;
   };
 
-  const handleDeleteLog = (id: string) => {
+  const handleDeleteLog = async (id: string) => {
     const log = dailyLogs.find((item) => item.id === id);
-    if (!log || !confirmChange(`xóa báo cáo ngày ${log.date} của dự án ${log.projectName}`)) return;
+    if (!log || !(await confirmChange(`xóa báo cáo ngày ${log.date} của dự án ${log.projectName}`))) return;
     const nextDailyLogs = removeDailyLogProgress(dailyLogs, log);
     setDailyLogs(nextDailyLogs);
     setProjects((prev) => synchronizeProjectProgress(prev, nextDailyLogs));
   };
 
-  const handleImportDailyLogs = (importedLogs: ImportedDailyLog[]) => {
+  const handleImportDailyLogs = async (importedLogs: ImportedDailyLog[]) => {
     if (!isAdmin) throw new Error('Bạn cần đăng nhập Admin để nhập báo cáo Excel.');
     const projectsWithoutContractors = new Set(
       importedLogs
@@ -647,7 +649,7 @@ export default function App() {
         .filter((project) => projectsWithoutContractors.has(project.id))
         .map((project) => project.name)
         .join(', ');
-      window.alert(
+      await showAlert(
         `Không thể nhập báo cáo vì dự án chưa được phân công nhà thầu thi công: ${projectNames}. Vui lòng phân công nhà thầu trước.`
       );
       return null;
@@ -666,9 +668,9 @@ export default function App() {
     ).length;
     const updatedCount = importedLogs.length - addedCount;
     if (
-      !confirmChange(
+      !(await confirmChange(
         `nhập ${importedLogs.length} báo cáo Excel (${addedCount} mới, ${updatedCount} cập nhật; bản ghi trùng ngày/dự án/nhà thầu sẽ được cập nhật)`
-      )
+      ))
     ) {
       return null;
     }
@@ -797,7 +799,7 @@ export default function App() {
     if (prefillProjectId) {
       const project = projects.find((item) => item.id === prefillProjectId);
       if (project && !hasAssignedProjectContractor(project)) {
-        window.alert(
+        void showAlert(
           'Dự án chưa được phân công nhà thầu thi công. Vui lòng phân công nhà thầu trước khi báo cáo tiến độ.'
         );
         return;
@@ -812,42 +814,42 @@ export default function App() {
   };
 
   // Bulletin Handlers
-  const handleAddBulletin = (newB: SiteBulletin): boolean => {
-    if (!confirmChange(`thêm thông báo “${newB.title}”`)) return false;
+  const handleAddBulletin = async (newB: SiteBulletin): Promise<boolean> => {
+    if (!(await confirmChange(`thêm thông báo “${newB.title}”`))) return false;
     setBulletins((prev) => [newB, ...prev]);
     return true;
   };
 
-  const handleUpdateBulletin = (updB: SiteBulletin): boolean => {
-    if (!confirmChange(`cập nhật thông báo “${updB.title}”`)) return false;
+  const handleUpdateBulletin = async (updB: SiteBulletin): Promise<boolean> => {
+    if (!(await confirmChange(`cập nhật thông báo “${updB.title}”`))) return false;
     setBulletins((prev) => prev.map((b) => (b.id === updB.id ? updB : b)));
     return true;
   };
 
-  const handleDeleteBulletin = (id: string) => {
+  const handleDeleteBulletin = async (id: string) => {
     const bulletin = bulletins.find((item) => item.id === id);
-    if (!bulletin || !confirmChange(`xóa thông báo “${bulletin.title}”`)) return;
+    if (!bulletin || !(await confirmChange(`xóa thông báo “${bulletin.title}”`))) return;
     setBulletins((prev) => prev.filter((b) => b.id !== id));
   };
 
   // Project Handlers
-  const handleAddProject = (newProject: UndergroundProject): boolean => {
-    if (!confirmChange(`thêm dự án “${newProject.name}”`)) return false;
+  const handleAddProject = async (newProject: UndergroundProject): Promise<boolean> => {
+    if (!(await confirmChange(`thêm dự án “${newProject.name}”`))) return false;
     setProjects((prev) => [newProject, ...prev]);
     return true;
   };
 
-  const handleUpdateProject = (updatedProject: UndergroundProject): boolean => {
-    if (!confirmChange(`cập nhật dự án “${updatedProject.name}”`)) return false;
+  const handleUpdateProject = async (updatedProject: UndergroundProject): Promise<boolean> => {
+    if (!(await confirmChange(`cập nhật dự án “${updatedProject.name}”`))) return false;
     setProjects((prev) =>
       prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))
     );
     return true;
   };
 
-  const handleDeleteProject = (projectId: string) => {
+  const handleDeleteProject = async (projectId: string) => {
     const project = projects.find((item) => item.id === projectId);
-    if (!project || !confirmChange(`xóa dự án “${project.name}”`)) return;
+    if (!project || !(await confirmChange(`xóa dự án “${project.name}”`))) return;
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
     if (selectedProjectId === projectId) {
       setSelectedProjectId('all');

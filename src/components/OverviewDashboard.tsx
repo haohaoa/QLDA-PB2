@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { UndergroundProject, DailyLogEntry, PlanType, SiteBulletin } from '../types/undergrounding';
 import { formatNumber } from '../utils/numberFormat';
 import {
@@ -13,6 +13,12 @@ import {
   ArrowRight,
   ChevronDown,
   Map as MapIcon,
+  TrendingUp,
+  DollarSign,
+  Layers,
+  Bell,
+  CheckCircle2,
+  Filter,
 } from 'lucide-react';
 import { isProjectActiveOnDate } from '../utils/scheduleUtils';
 import { getContractorKey, getDailyTrenchOutput, getLatestProgressLogs } from '../utils/progressUtils';
@@ -62,6 +68,81 @@ function wrapProjectName(name: string, maxLineLength = 22): string[] {
   return lines.length > 0 ? lines : [name];
 }
 
+function getSmoothSplinePath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return path;
+}
+
+function getSmoothAreaPath(points: { x: number; y: number }[], baselineY: number): string {
+  if (points.length === 0) return '';
+  const spline = getSmoothSplinePath(points);
+  const first = points[0];
+  const last = points[points.length - 1];
+  return `${spline} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`;
+}
+
+const ContractorNames: React.FC<{ names: string[]; count: number; className?: string }> = ({ names, count, className }) => {
+  const label = names.join(', ') || 'Chưa phân công';
+  const staticNameRef = useRef<HTMLSpanElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = staticNameRef.current;
+    if (!element) return;
+
+    const measureOverflow = () => setIsOverflowing(element.scrollWidth > element.clientWidth + 1);
+    measureOverflow();
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(measureOverflow);
+    observer?.observe(element);
+    window.addEventListener('resize', measureOverflow);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measureOverflow);
+    };
+  }, [label]);
+
+  return (
+    <div
+      className={className || "contractor-name-group min-w-0 w-fit max-w-[min(36vw,220px)] px-2 text-[9px] font-semibold text-slate-600 sm:text-[10px]"}
+      data-overflow={isOverflowing}
+      title={`${count} nhà thầu: ${label}`}
+      aria-label={`${count} nhà thầu: ${label}`}
+    >
+      <span ref={staticNameRef} className="contractor-name-static block max-w-full truncate">
+        {label}
+      </span>
+      {isOverflowing && (
+        <span className="contractor-name-marquee hidden overflow-hidden whitespace-nowrap">
+          <span className="contractor-marquee-track flex w-max">
+            <span className="pr-8">{label}</span>
+            <span aria-hidden="true" className="pr-8">{label}</span>
+          </span>
+        </span>
+      )}
+    </div>
+  );
+};
+
 interface OverviewDashboardProps {
   projects: UndergroundProject[];
   planTypes: PlanType[];
@@ -89,11 +170,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [hoveredChartProjectId, setHoveredChartProjectId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [expandedDetailProjectId, setExpandedDetailProjectId] = useState<string | null>(null);
   const [selectedPlanTypeId, setSelectedPlanTypeId] = useState('all');
   const projectCardRefs = useRef(new Map<string, HTMLElement>());
+  const shouldReduceMotion = useReducedMotion();
 
   const openProjectOverview = (projectId: string) => {
     setSelectedProjectId(projectId);
+    setExpandedDetailProjectId(projectId);
     requestAnimationFrame(() => {
       projectCardRefs.current.get(projectId)?.scrollIntoView({
         behavior: 'smooth',
@@ -152,8 +236,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const projectChartNameLines = projectChartData.map(({ project }) => wrapProjectName(project.name));
   const maxProjectNameLines = Math.max(1, ...projectChartNameLines.map((lines) => lines.length));
   const extraLabelHeight = Math.max(0, maxProjectNameLines - 3) * 12;
-  const chartHeight = 280 + extraLabelHeight;
-  const chartMargin = { top: 20, right: 24, bottom: 62 + extraLabelHeight, left: 46 };
+  const chartHeight = 290 + extraLabelHeight;
+  const chartMargin = { top: 32, right: 32, bottom: 64 + extraLabelHeight, left: 48 };
   const chartPlotWidth = projectChartWidth - chartMargin.left - chartMargin.right;
   const chartPlotHeight = chartHeight - chartMargin.top - chartMargin.bottom;
   const chartBaseline = chartMargin.top + chartPlotHeight;
@@ -161,9 +245,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     x: chartMargin.left + chartPlotWidth * ((index + 0.5) / Math.max(projectChartData.length, 1)),
     y: chartBaseline - (Math.min(Math.max(overallPercent, 0), 100) / 100) * chartPlotHeight,
   }));
-  const projectChartLine = projectChartPoints
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ');
+  const projectChartLine = getSmoothSplinePath(projectChartPoints);
+  const projectChartArea = getSmoothAreaPath(projectChartPoints, chartBaseline);
   const thisWeekRange = getWeekRange(currentDate);
   const previousWeekRange = getWeekRange(currentDate, -1);
   const weekProgressByProject = scopedProjects.map((project) => {
@@ -262,201 +345,338 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   return (
     <div className="w-full min-w-0 space-y-4 overflow-x-clip pb-12 sm:space-y-6">
       {/* 1. Header Toolbar with Direct Fast Actions */}
-      <div className="flex min-w-0 flex-col justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs sm:flex-row sm:items-center sm:gap-4 sm:p-5 md:flex-row">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 mb-1">
-            <Sparkles className="w-4 h-4" />
-            <span>TỔNG QUAN</span>
+      <div className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:gap-6 sm:p-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+              <Sparkles className="w-3 h-3 text-blue-600" />
+              Tổng Quan Điều Hành
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              Cập nhật ngày {currentDate.split('-').reverse().join('/')}
+            </span>
           </div>
-          <h2 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+          <h2 className="text-xl font-black leading-tight tracking-tight text-slate-900 sm:text-2xl">
             Biểu Đồ Tiến Độ & Báo Cáo Điều Hành
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Theo dõi tiến độ tổng hợp, khối lượng từng hạng mục và tăng trưởng thi công theo tuần.
+          <p className="text-xs text-slate-500 mt-1">
+            Theo dõi tổng hợp khối lượng thi công mương cáp, hố ga và tiến độ toàn mạng lưới dự án.
           </p>
         </div>
 
-        <div className="grid w-full gap-2 sm:w-auto sm:min-w-[18rem] sm:grid-cols-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Tổng quan theo loại kế hoạch
-            <select
-              value={selectedPlanTypeId}
-              onChange={(event) => {
-                setSelectedPlanTypeId(event.target.value);
-                setSelectedProjectId(null);
-              }}
-              aria-label="Lọc tổng quan theo loại kế hoạch"
-              className="mt-1 min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-bold normal-case tracking-normal text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+          {/* Plan Type Selector */}
+          <div className="min-w-[15rem]">
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <Filter className="h-3.5 w-3.5" />
+              </div>
+              <select
+                value={selectedPlanTypeId}
+                onChange={(event) => {
+                  setSelectedPlanTypeId(event.target.value);
+                  setSelectedProjectId(null);
+                }}
+                aria-label="Lọc tổng quan theo loại kế hoạch"
+                className="min-h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/90 pl-8.5 pr-8 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">Tất cả loại kế hoạch</option>
+                {planTypes.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
+                <ChevronDown className="h-3.5 w-3.5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons: Zalo & Export Image/Print */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+            <button
+              onClick={handleCopyZalo}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700 active:scale-[0.98]"
+              title="Sao chép tóm tắt định dạng nhanh gửi Zalo các sếp"
             >
-              <option value="all">Tất cả loại kế hoạch</option>
-              {planTypes.map((type) => (
-                <option key={type.id} value={type.id}>{type.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+              {copiedZalo ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedZalo ? 'Đã Sao Chép!' : 'Báo Cáo Zalo (1-Click)'}</span>
+            </button>
 
-        {/* Action buttons: Zalo & Export Image/Print */}
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-2.5">
-          <button
-            onClick={handleCopyZalo}
-            className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-2 py-2 text-[10px] font-bold text-white shadow-xs transition-all hover:bg-blue-700 active:scale-[0.98] sm:gap-2 sm:px-4 sm:text-xs"
-            title="Sao chép tóm tắt định dạng nhanh gửi Zalo các sếp"
-          >
-            {copiedZalo ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copiedZalo ? 'Đã Sao Chép Zalo!' : 'Báo Cáo Zalo (1-Click)'}</span>
-          </button>
-
-          <button
-            onClick={() => setShowPrintModal(true)}
-            className="flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-100 px-2 py-2 text-[10px] font-semibold text-slate-800 transition-colors hover:bg-slate-200 sm:gap-1.5 sm:px-3.5 sm:text-xs"
-            title="Xem & Chụp hình phiếu báo cáo lãnh đạo"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Chụp / In Phiếu Báo Cáo</span>
-          </button>
+            <button
+              onClick={() => setShowPrintModal(true)}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98]"
+              title="Xem & Chụp hình phiếu báo cáo lãnh đạo"
+            >
+              <Printer className="w-4 h-4 text-slate-500" />
+              <span>Chụp / In Phiếu</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 2. Today Unsubmitted Warning Banner (Nổi bật nếu hôm nay chưa báo cáo) */}
       {isAdmin && unsubmittedProjects.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 shadow-xs">
+        <div className="rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-amber-50/80 to-orange-50/50 p-4 text-amber-950 shadow-xs">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 shadow-xs">
                 <AlertTriangle className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-bold">
-                  {unsubmittedProjects.length} dự án chưa báo cáo hôm nay
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-amber-950">
+                    {unsubmittedProjects.length} dự án chưa chốt báo cáo hôm nay
+                  </p>
+                  <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    Cần cập nhật
+                  </span>
+                </div>
                 <p className="mt-0.5 text-xs text-amber-800">
-                  Ngày {currentDate.split('-').reverse().join('/')}
+                  Ngày {currentDate.split('-').reverse().join('/')} · Đề nghị các tổ giám sát hoàn thiện số liệu nhật ký hiện trường.
                 </p>
               </div>
             </div>
             <button
               onClick={() => onGoToDailyReport(unsubmittedProjects[0]?.id)}
-              className="rounded-lg bg-amber-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-800"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:from-amber-700 hover:to-amber-800 hover:shadow-sm active:scale-[0.98]"
             >
-              Mở báo cáo
+              <span>Mở báo cáo nhanh</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
-          <details className="group mt-3 border-t border-amber-200 pt-3">
-            <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-semibold text-amber-800 marker:hidden">
-              <span>Xem danh sách dự án</span>
-              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          <details className="group mt-3 border-t border-amber-200/80 pt-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-semibold text-amber-900 hover:text-amber-950 marker:hidden">
+              <span className="flex items-center gap-2">
+                <span>Danh sách tuyến chưa có báo cáo ({unsubmittedProjects.length}):</span>
+                <span className="font-normal text-amber-800 group-open:hidden">Bấm để xem chi tiết ↓</span>
+              </span>
+              <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
             </summary>
-            <ul className="mt-2 space-y-1 pl-4 text-xs text-amber-900">
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
               {unsubmittedProjects.map((project) => (
-                <li key={project.id} className="list-disc">{project.name}</li>
+                <button
+                  key={project.id}
+                  onClick={() => onGoToDailyReport(project.id)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white/90 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-2xs transition hover:border-amber-300 hover:bg-amber-100/60"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  <span>{project.name}</span>
+                </button>
               ))}
-            </ul>
+            </div>
           </details>
         </div>
       )}
 
-      {/* 3. Executive KPI Metric Row */}
-      <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
-        <div className="order-1 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-5 lg:order-none">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-            Tổng Giá Trị Hợp Đồng
-          </span>
-          <div className="break-words text-lg font-black font-mono text-slate-900 sm:text-2xl">
-            {(totalContractValue / 1000000000).toFixed(2)}{' '}
-            <span className="text-xs font-sans font-semibold text-slate-500">Tỷ VNĐ</span>
-          </div>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            {activeProjects.length} dự án đang thực hiện
-          </span>
-        </div>
-
-        <div className="order-3 col-span-2 min-w-0 rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/70 p-3 shadow-xs sm:p-5 lg:order-none">
-          <div className="min-w-0 space-y-3">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Tiến độ tổng hợp theo phạm vi đã chọn
+      {/* 3. Executive KPI Metric Row - 4 Balanced Symmetrical Cards */}
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 sm:gap-4">
+        {/* Card 1: Tổng Giá Trị Hợp Đồng */}
+        <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:p-5">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Tổng Giá Trị Hợp Đồng
               </span>
-              <span className="shrink-0 text-2xl font-black font-mono text-slate-900">
-                {overallProgressPercent}%
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <DollarSign className="h-4 w-4" />
               </span>
             </div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="min-w-0 rounded-xl border border-blue-100 bg-white/80 p-2.5 sm:p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">Mương cáp</p>
-                  <p className="shrink-0 font-mono text-sm font-black text-blue-700">{overallLengthPercent}%</p>
-                </div>
-                <p className="mt-1 whitespace-nowrap text-[10px] tabular-nums text-slate-500">
-                  {formatNumber(totalCompletedLengthM)} / {formatNumber(totalSystemLengthM)} m
-                </p>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="font-mono text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                {(totalContractValue / 1_000_000_000).toFixed(2)}
+              </span>
+              <span className="text-xs font-bold text-slate-500">Tỷ VNĐ</span>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">Quy mô toàn hệ thống</span>
+              <span className="font-mono font-bold text-slate-700">
+                {formatNumber(totalSystemLengthM)} m tuyến
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                style={{ width: `${Math.min(overallLengthPercent, 100)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400">
+              {activeProjects.length} dự án đang giải ngân & thi công
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Tiến Độ Tổng Hợp Toàn Tuyến */}
+        <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-4 shadow-xs transition-all duration-200 hover:border-indigo-200 hover:shadow-sm sm:p-5">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
+                Tiến Độ Tổng Hợp
+              </span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100/80 text-indigo-700">
+                <TrendingUp className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between gap-2">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono text-2xl font-black tracking-tight text-indigo-950 sm:text-3xl">
+                  {overallProgressPercent}%
+                </span>
+                <span className="text-xs font-semibold text-indigo-600">toàn phạm vi</span>
               </div>
-              <div className="min-w-0 rounded-xl border border-emerald-100 bg-white/80 p-2.5 sm:p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Hầm / hố ga</p>
-                  <p className="shrink-0 font-mono text-sm font-black text-emerald-700">{overallChamberPercent}%</p>
-                </div>
-                <p className="mt-1 whitespace-nowrap text-[10px] tabular-nums text-slate-500">
-                  {formatNumber(totalCompletedChambers)} / {formatNumber(totalTargetChambers)} hầm
-                </p>
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800">
+                {selectedPlanTypeId === 'all' ? 'Toàn bộ' : selectedPlanTypeName}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2.5 border-t border-indigo-100/80 pt-3">
+            <div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-blue-900">Mương cáp ({overallLengthPercent}%)</span>
+                <span className="font-mono text-[10px] text-slate-500">
+                  {formatNumber(totalCompletedLengthM)}/{formatNumber(totalSystemLengthM)} m
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
+                <div
+                  className="h-full rounded-full bg-blue-600"
+                  style={{ width: `${Math.min(overallLengthPercent, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-emerald-900">Hầm / hố ga ({overallChamberPercent}%)</span>
+                <span className="font-mono text-[10px] text-slate-500">
+                  {formatNumber(totalCompletedChambers)}/{formatNumber(totalTargetChambers)} hầm
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-emerald-100">
+                <div
+                  className="h-full rounded-full bg-emerald-600"
+                  style={{ width: `${Math.min(overallChamberPercent, 100)}%` }}
+                />
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-slate-500">
-            Tiến độ tổng hợp = trung bình tỷ lệ hoàn thành mương cáp và hầm / hố ga.
-          </p>
         </div>
 
-        <div className="order-2 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-5 lg:order-none">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-            Bảng Tin & Pháp Lý
-          </span>
-          <div className="text-lg font-black font-mono text-amber-600 sm:text-2xl">
-            {formatNumber(scopedBulletins.filter((b) => b.isActive).length)}{' '}
-            <span className="text-xs font-sans font-semibold text-slate-500">thông báo</span>
+        {/* Card 3: Danh Mục Dự Án */}
+        <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:p-5">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Danh Mục Dự Án
+              </span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <Layers className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="font-mono text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                {scopedProjects.length}
+              </span>
+              <span className="text-xs font-bold text-slate-500">tuyến công trình</span>
+            </div>
           </div>
-          <button
-            onClick={() => onGoToBulletins()}
-            className="text-[11px] text-blue-600 hover:text-blue-800 underline font-semibold mt-1 block text-left"
-          >
-            Xem bảng tin hiện trường
-          </button>
+
+          <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+            <div className="grid grid-cols-3 gap-1 text-center">
+              <div className="rounded-lg bg-blue-50/80 p-1.5">
+                <span className="block text-[9px] font-semibold text-blue-700">Đang làm</span>
+                <strong className="font-mono text-xs font-bold text-blue-900">{activeProjects.length}</strong>
+              </div>
+              <div className="rounded-lg bg-amber-50/80 p-1.5">
+                <span className="block text-[9px] font-semibold text-amber-700">Tạm ngưng</span>
+                <strong className="font-mono text-xs font-bold text-amber-900">{pausedProjectCount}</strong>
+              </div>
+              <div className="rounded-lg bg-emerald-50/80 p-1.5">
+                <span className="block text-[9px] font-semibold text-emerald-700">Hoàn tất</span>
+                <strong className="font-mono text-xs font-bold text-emerald-900">{completedProjectCount}</strong>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              {completedProjectCount > 0
+                ? `${completedProjectCount} tuyến đã hoàn thành 100% mục tiêu`
+                : 'Đang bám sát kế hoạch tiến độ các tuyến'}
+            </p>
+          </div>
         </div>
 
-        <div className="order-4 col-span-2 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-5 lg:order-none lg:col-span-1">
-          <span className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Số lượng dự án
-          </span>
-          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-1 lg:gap-1">
-            <div className="rounded-lg bg-blue-50 px-2 py-1.5 text-center lg:flex lg:items-center lg:justify-between lg:text-left">
-              <span className="block text-[9px] font-semibold text-blue-700 sm:text-[10px]">Đang thực hiện</span>
-              <strong className="font-mono text-sm text-blue-800">{activeProjects.length}</strong>
+        {/* Card 4: Bảng Tin & Pháp Lý */}
+        <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:p-5">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Bảng Tin & Pháp Lý
+              </span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <Bell className="h-4 w-4" />
+              </span>
             </div>
-            <div className="rounded-lg bg-amber-50 px-2 py-1.5 text-center lg:flex lg:items-center lg:justify-between lg:text-left">
-              <span className="block text-[9px] font-semibold text-amber-700 sm:text-[10px]">Tạm ngưng</span>
-              <strong className="font-mono text-sm text-amber-800">{pausedProjectCount}</strong>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="font-mono text-2xl font-black tracking-tight text-amber-600 sm:text-3xl">
+                {scopedBulletins.filter((b) => b.isActive).length}
+              </span>
+              <span className="text-xs font-bold text-slate-500">thông báo hiện trường</span>
             </div>
-            <div className="rounded-lg bg-emerald-50 px-2 py-1.5 text-center lg:flex lg:items-center lg:justify-between lg:text-left">
-              <span className="block text-[9px] font-semibold text-emerald-700 sm:text-[10px]">Hoàn tất</span>
-              <strong className="font-mono text-sm text-emerald-800">{completedProjectCount}</strong>
-            </div>
+          </div>
+
+          <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+            {scopedBulletins.filter((b) => b.isActive).length > 0 ? (
+              <div className="rounded-lg bg-amber-50/90 p-2 text-[10px] text-amber-900 line-clamp-2">
+                <strong>Gần nhất:</strong> {scopedBulletins.find((b) => b.isActive)?.title}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50/80 px-2 py-1.5 text-[10px] font-semibold text-emerald-800">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>Hiện trường thông suốt, không vướng mắc</span>
+              </div>
+            )}
+            <button
+              onClick={() => onGoToBulletins()}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 transition hover:text-blue-800 hover:underline"
+            >
+              <span>Xem bảng tin hiện trường</span>
+              <ArrowRight className="h-3 w-3" />
+            </button>
           </div>
         </div>
       </div>
 
       <section
         onMouseLeave={() => setHoveredChartProjectId(null)}
-        className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-5"
+        className="min-w-0 space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5"
       >
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <BarChart3 className="h-4 w-4 text-indigo-600" />
+              <BarChart3 className="h-5 w-5 text-indigo-600" />
               Biểu đồ tiến độ tổng hợp các dự án
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Cột so sánh tỷ lệ hoàn thành mương cáp và hố ga; đường biểu diễn tiến độ tổng hợp.
+              Cột đôi so sánh tỷ lệ hoàn thành Mương cáp & Hố ga; đường biểu diễn Tiến độ tổng hợp từng tuyến.
             </p>
+          </div>
+
+          {/* Interactive Legend in Header */}
+          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600 sm:gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-blue-600 shadow-2xs" />
+              <span>Mương cáp</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-emerald-500 shadow-2xs" />
+              <span>Hầm / hố ga</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-4 rounded-full bg-indigo-600 shadow-2xs" />
+              <span>Tiến độ tổng hợp</span>
+            </span>
           </div>
         </div>
 
@@ -606,6 +826,25 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               className="block w-full min-w-[720px]"
               style={{ height: `${chartHeight}px` }}
             >
+              <defs>
+                <linearGradient id="chartTrenchGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#1d4ed8" />
+                </linearGradient>
+                <linearGradient id="chartChamberGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#047857" />
+                </linearGradient>
+                <linearGradient id="chartAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.18" />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.01" />
+                </linearGradient>
+                <filter id="chartPillShadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#312e81" floodOpacity="0.25" />
+                </filter>
+              </defs>
+
+              {/* Grid Lines */}
               {[0, 25, 50, 75, 100].map((tick) => {
                 const y = chartBaseline - (tick / 100) * chartPlotHeight;
                 return (
@@ -615,15 +854,15 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       x2={projectChartWidth - chartMargin.right}
                       y1={y}
                       y2={y}
-                      stroke="#e2e8f0"
-                      strokeDasharray={tick === 0 ? undefined : '3 4'}
+                      stroke="#f1f5f9"
+                      strokeWidth={tick === 0 ? "1.5" : "1"}
+                      strokeDasharray={tick === 0 ? undefined : '4 4'}
                     />
                     <text
-                      x={chartMargin.left - 8}
-                      y={y + 3}
+                      x={chartMargin.left - 10}
+                      y={y + 3.5}
                       textAnchor="end"
-                      className="fill-slate-500"
-                      fontSize="9"
+                      className="fill-slate-400 font-mono text-[9px] font-semibold"
                     >
                       {tick}%
                     </text>
@@ -631,22 +870,25 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 );
               })}
 
+              {/* Project Columns (Backdrop, Bars & Labels) */}
               {projectChartData.map(({ project, trenchPercent, chamberPercent }, index) => {
                 const groupCenter =
                   chartMargin.left + chartPlotWidth * ((index + 0.5) / projectChartData.length);
                 const groupWidth = chartPlotWidth / projectChartData.length;
-                const barWidth = Math.min(28, groupWidth * 0.22);
-                const barGap = 5;
+                const barWidth = Math.min(24, Math.max(16, groupWidth * 0.18));
+                const barGap = 6;
                 const trenchHeight = (Math.min(Math.max(trenchPercent, 0), 100) / 100) * chartPlotHeight;
                 const chamberHeight = (Math.min(Math.max(chamberPercent, 0), 100) / 100) * chartPlotHeight;
                 const labelLines = projectChartNameLines[index];
+                const isHovered = hoveredChartProjectId === project.id;
+
                 return (
                   <g
                     key={project.id}
                     role="button"
                     tabIndex={0}
                     aria-label={`Xem tổng quan dự án ${project.name}`}
-                    className="group cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600"
+                    className="group cursor-pointer outline-none"
                     onMouseEnter={() => setHoveredChartProjectId(project.id)}
                     onFocus={() => setHoveredChartProjectId(project.id)}
                     onClick={() => openProjectOverview(project.id)}
@@ -657,34 +899,59 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       }
                     }}
                   >
+                    {/* Hover column background */}
                     <rect
-                      x={groupCenter - groupWidth / 2}
-                      y={chartMargin.top}
-                      width={groupWidth}
-                      height={chartPlotHeight + chartMargin.bottom - 10}
-                      fill="transparent"
+                      x={groupCenter - groupWidth / 2 + 4}
+                      y={chartMargin.top - 8}
+                      width={groupWidth - 8}
+                      height={chartPlotHeight + chartMargin.bottom + 4}
+                      rx="12"
+                      fill={isHovered ? '#f8fafc' : 'transparent'}
+                      stroke={isHovered ? '#e2e8f0' : 'transparent'}
+                      className="transition-all duration-200"
                     />
+
+                    {/* Trench Bar */}
                     <rect
                       x={groupCenter - barGap / 2 - barWidth}
-                      y={chartBaseline - trenchHeight}
+                      y={chartBaseline - Math.max(trenchHeight, trenchPercent > 0 ? 4 : 4)}
                       width={barWidth}
-                      height={trenchHeight}
-                      rx="3"
-                      fill="#2563eb"
-                      className="transition-[filter,opacity] duration-200 ease-out group-hover:brightness-110 group-focus-visible:brightness-110"
+                      height={Math.max(trenchHeight, trenchPercent > 0 ? 4 : 4)}
+                      rx="4"
+                      fill={trenchPercent > 0 ? "url(#chartTrenchGrad)" : "#e2e8f0"}
+                      className="transition-[filter,opacity] duration-200 ease-out group-hover:brightness-110"
                     />
+
+                    {/* Chamber Bar */}
                     <rect
                       x={groupCenter + barGap / 2}
-                      y={chartBaseline - chamberHeight}
+                      y={chartBaseline - Math.max(chamberHeight, chamberPercent > 0 ? 4 : 4)}
                       width={barWidth}
-                      height={chamberHeight}
-                      rx="3"
-                      fill="#10b981"
-                      className="transition-[filter,opacity] duration-200 ease-out group-hover:brightness-110 group-focus-visible:brightness-110"
+                      height={Math.max(chamberHeight, chamberPercent > 0 ? 4 : 4)}
+                      rx="4"
+                      fill={chamberPercent > 0 ? "url(#chartChamberGrad)" : "#e2e8f0"}
+                      className="transition-[filter,opacity] duration-200 ease-out group-hover:brightness-110"
                     />
-                    <text x={groupCenter} y={chartBaseline + 16} textAnchor="middle" className="fill-slate-600" fontSize="9">
+
+                    {/* Project Code & Label Lines */}
+                    <text x={groupCenter} y={chartBaseline + 16} textAnchor="middle">
+                      <tspan
+                        x={groupCenter}
+                        dy="0"
+                        className="font-mono text-[9px] font-bold"
+                        fill={isHovered ? '#4f46e5' : '#94a3b8'}
+                      >
+                        {project.code}
+                      </tspan>
                       {labelLines.map((line, lineIndex) => (
-                        <tspan key={`${project.id}-label-${lineIndex}`} x={groupCenter} dy={lineIndex === 0 ? 0 : 12}>
+                        <tspan
+                          key={`${project.id}-label-${lineIndex}`}
+                          x={groupCenter}
+                          dy={lineIndex === 0 ? 12 : 11}
+                          className="text-[9px]"
+                          fill={isHovered ? '#0f172a' : '#475569'}
+                          fontWeight={isHovered ? '700' : '500'}
+                        >
                           {line}
                         </tspan>
                       ))}
@@ -693,49 +960,79 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 );
               })}
 
+              {/* Area Fill under Spline */}
               {projectChartPoints.length > 1 && (
-                <path d={projectChartLine} fill="none" stroke="#7c3aed" strokeWidth="2.5" pointerEvents="none" />
+                <path d={projectChartArea} fill="url(#chartAreaGrad)" pointerEvents="none" />
               )}
-              {projectChartPoints.map((point, index) => (
-                <g
-                  key={projectChartData[index].project.id}
-                  onMouseEnter={() => setHoveredChartProjectId(projectChartData[index].project.id)}
-                  onClick={() => openProjectOverview(projectChartData[index].project.id)}
-                  className="cursor-pointer"
-                >
-                  <circle
-                    cx={point.x}
-                    cy={point.y}
-                    r="4"
-                    fill="#7c3aed"
-                    stroke="white"
-                    strokeWidth="2"
-                    className="origin-center transition-transform duration-200 ease-out hover:scale-125"
-                  />
-                  <text
-                    x={point.x}
-                    y={point.y - 8}
-                    textAnchor="middle"
-                    fill="#6d28d9"
-                    fontSize="9"
-                    fontWeight="700"
+
+              {/* Smooth Spline Curve */}
+              {projectChartPoints.length > 1 && (
+                <path
+                  d={projectChartLine}
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              )}
+
+              {/* Interactive Trend Points & Percentage Badges */}
+              {projectChartPoints.map((point, index) => {
+                const project = projectChartData[index].project;
+                const isHovered = hoveredChartProjectId === project.id;
+                const badgeY = Math.max(8, point.y - 25);
+
+                return (
+                  <g
+                    key={project.id}
+                    onMouseEnter={() => setHoveredChartProjectId(project.id)}
+                    onClick={() => openProjectOverview(project.id)}
+                    className="cursor-pointer"
                   >
-                    {projectChartData[index].overallPercent}%
-                  </text>
-                </g>
-              ))}
+                    {/* Badge Pill Above Point */}
+                    <rect
+                      x={point.x - 17}
+                      y={badgeY}
+                      width={34}
+                      height={18}
+                      rx={9}
+                      fill={isHovered ? '#312e81' : '#4f46e5'}
+                      filter="url(#chartPillShadow)"
+                      className="transition-all duration-200"
+                    />
+                    <text
+                      x={point.x}
+                      y={badgeY + 12}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="9.5"
+                      fontWeight="800"
+                      className="font-mono"
+                    >
+                      {projectChartData[index].overallPercent}%
+                    </text>
+
+                    {/* Point Circle on Line */}
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={isHovered ? 6 : 4.5}
+                      fill="#4f46e5"
+                      stroke="#ffffff"
+                      strokeWidth="2.5"
+                      className="origin-center transition-all duration-200"
+                    />
+                  </g>
+                );
+              })}
             </svg>
           </div>
           </>
         ) : (
           <p className="py-8 text-center text-xs text-slate-500">Chưa có dự án phù hợp với loại kế hoạch đã chọn.</p>
         )}
-
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-semibold text-slate-600">
-          <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-600" />Mương cáp</span>
-          <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Hầm / hố ga</span>
-          <span className="inline-flex items-center gap-1.5"><i className="h-0.5 w-3 rounded bg-violet-600" />Tiến độ tổng hợp</span>
-        </div>
       </section>
 
       <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-5">
@@ -770,8 +1067,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 (bulletin) =>
                   bulletin.isActive && (bulletin.projectId === project.id || bulletin.projectId === 'all')
               );
-              const isAwaitingReport =
-                isProjectActiveOnDate(project, currentDate) && !reportedProjectIds.has(project.id);
+              const contractorCount = project.contractors?.length
+                || (project.contractor && project.contractor !== 'Chưa phân công'
+                  ? project.contractor.split(',').filter((name) => name.trim()).length
+                  : 0);
+              const contractorNames = project.contractors?.length
+                ? project.contractors.map((contractor) => contractor.name.trim()).filter(Boolean)
+                : project.contractor && project.contractor !== 'Chưa phân công'
+                ? project.contractor.split(',').map((name) => name.trim()).filter(Boolean)
+                : [];
+              const isDetailsOpen = expandedDetailProjectId === project.id;
               const weeklyProgress = weekProgressByProject.find(
                 (item) => item.project.id === project.id
               );
@@ -829,97 +1134,190 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     if (element) projectCardRefs.current.set(project.id, element);
                     else projectCardRefs.current.delete(project.id);
                   }}
-                  className={`min-w-0 rounded-xl border p-3 transition sm:p-4 ${
+                  className={`min-w-0 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition-[border-color,box-shadow] duration-200 sm:p-4 ${
                     selectedProjectId === project.id
-                      ? 'scroll-mt-24 border-indigo-300 bg-indigo-50/20 shadow-md ring-2 ring-indigo-100'
-                      : 'border-slate-200'
+                      ? 'scroll-mt-24 border-blue-200 shadow-md'
+                      : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
                   }`}
                 >
-                  <div className="mb-3 flex min-w-0 items-start justify-between gap-2 sm:gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                  {/* 1. Header Row: Title, Code, Bulletin Dot, Map Action */}
+                  <div className="flex items-start justify-between gap-2.5 sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h4
                           title={project.name}
-                          className={`min-w-0 break-words text-sm font-bold leading-snug ${isAwaitingReport ? 'text-red-700' : 'text-slate-900'}`}
+                          className="min-w-0 break-words text-sm font-bold leading-snug text-slate-900 sm:text-base"
                         >
                           {project.name}
                         </h4>
                         {projectBulletins.length > 0 && (
                           <span
-                            className="h-2 w-2 shrink-0 rounded-full bg-red-500"
+                            className="h-2 w-2 shrink-0 rounded-full bg-red-500 animate-pulse"
                             title={`${projectBulletins.length} thông báo hiện trường`}
                           />
                         )}
-                      </div>
-                      <p className="mt-0.5 text-[10px] font-mono text-slate-500">{project.code}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      {isAwaitingReport && (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-black uppercase text-red-700 sm:text-[10px]">
-                          Chưa báo cáo hôm nay
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
+                          {project.code}
                         </span>
-                      )}
-                      <div className="text-right">
-                        <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[10px]">Tổng hợp</p>
-                        <p className="font-mono text-base font-black text-slate-900 sm:text-lg">{projectProgressPercent}%</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onGoToMap(project.id)}
-                        aria-label={`Xem bản đồ tuyến ${project.name}`}
-                        className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1 text-[10px] font-bold text-teal-800 transition duration-200 hover:-translate-y-0.5 hover:bg-teal-100 hover:shadow-sm active:translate-y-0"
+
+                      {/* 2. Metadata Grid: Balanced horizontal layout */}
+                      <div className="mt-2 grid min-w-0 grid-cols-1 gap-1.5 text-[10px] text-slate-600 sm:grid-cols-2 lg:grid-cols-3 sm:text-[11px]">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="shrink-0 text-slate-400">Thời gian:</span>
+                          <span className="truncate font-medium text-slate-700">
+                            {project.startDate.split('-').reverse().join('/')} – {project.finishDate.split('-').reverse().join('/')}
+                          </span>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="shrink-0 text-slate-400">Giá trị HĐ:</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ VNĐ
+                          </span>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1.5 sm:col-span-2 lg:col-span-1">
+                          <span className="shrink-0 text-slate-400">Nhà thầu:</span>
+                          <ContractorNames
+                            names={contractorNames}
+                            count={contractorCount}
+                            className="contractor-name-group min-w-0 flex-1 text-[10px] font-semibold text-slate-700 sm:text-[11px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onGoToMap(project.id)}
+                      aria-label={`Xem bản đồ tuyến ${project.name}`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-teal-200/90 bg-teal-50 px-2.5 py-1 text-[10px] font-bold text-teal-800 transition-colors hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 sm:text-[11px]"
+                    >
+                      <MapIcon className="h-3.5 w-3.5 text-teal-700" />
+                      <span>Bản đồ tuyến</span>
+                    </button>
+                  </div>
+
+                  {/* 3. Unified Progress Section: Donut overall progress + Trench & Chamber bars */}
+                  <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 xs:grid-cols-2 sm:grid-cols-[105px_1fr_1fr] sm:gap-2.5">
+                    {/* Overall Progress Gauge */}
+                    <div className="col-span-1 xs:col-span-2 sm:col-span-1 flex items-center justify-between sm:flex-col sm:justify-center gap-2 rounded-xl border border-indigo-100/90 bg-gradient-to-br from-indigo-50/60 to-slate-50 p-2 sm:p-2.5 text-center">
+                      <div
+                        className="grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-xs"
+                        style={{
+                          background: `conic-gradient(#4f46e5 ${Math.min(projectProgressPercent, 100)}%, #e2e8f0 0)`,
+                        }}
+                        role="img"
+                        aria-label={`Tiến độ tổng hợp ${projectProgressPercent}%`}
                       >
-                        <MapIcon className="h-3 w-3" />
-                        Xem tuyến
-                      </button>
+                        <span className="grid h-9 w-9 place-items-center rounded-full bg-white font-mono text-[11px] font-black text-slate-900 sm:text-xs">
+                          {projectProgressPercent}%
+                        </span>
+                      </div>
+                      <div className="text-right sm:text-center">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-indigo-900 sm:text-[11px]">
+                          Tổng hợp
+                        </span>
+                        <span className="text-[9px] text-slate-500 sm:hidden">
+                          Trung bình cáp & hố ga
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  {selectedProjectId === project.id && (
-                    <div className="mb-3 grid gap-2 rounded-lg border border-indigo-100 bg-indigo-50/70 p-2.5 text-[10px] text-slate-700 sm:grid-cols-2">
-                      <p className="break-words"><strong>Chủ đầu tư:</strong> {project.investor}</p>
-                      <p className="break-words"><strong>Nhà thầu:</strong> {project.contractors?.length ? project.contractors.map((contractor) => contractor.name).join(', ') : project.contractor}</p>
-                      <p><strong>Thời gian:</strong> {project.startDate.split('-').reverse().join('/')} – {project.finishDate.split('-').reverse().join('/')}</p>
-                      <p><strong>Giá trị hợp đồng:</strong> {formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ VNĐ</p>
-                      <p className="break-words sm:col-span-2"><strong>Vị trí hiện trường:</strong> {project.currentWorkLocation || 'Chưa cập nhật'}</p>
-                    </div>
-                  )}
-
-                  <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all"
-                      style={{ width: `${Math.min(projectProgressPercent, 100)}%` }}
-                    />
-                  </div>
-
-                  <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2">
-                    <div className="min-w-0 rounded-lg bg-blue-50/70 p-2 sm:p-2.5">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-blue-800">Mương cáp</span>
-                        <span className="font-mono text-xs font-black text-blue-800">{trenchPercent}%</span>
+                    {/* Trench Progress */}
+                    <div className="flex flex-col justify-between rounded-xl border border-blue-100 bg-blue-50/60 p-2 sm:p-2.5">
+                      <div className="mb-1 flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-blue-900 sm:text-[11px]">
+                          Mương cáp
+                        </span>
+                        <span className="font-mono text-xs font-black text-blue-700 sm:text-sm">
+                          {trenchPercent}%
+                        </span>
                       </div>
                       <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-blue-100">
-                        <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(trenchPercent, 100)}%` }} />
+                        <motion.div
+                          className="h-full rounded-full bg-blue-600"
+                          initial={shouldReduceMotion ? false : { width: 0 }}
+                          animate={{ width: `${Math.min(trenchPercent, 100)}%` }}
+                          transition={{ duration: shouldReduceMotion ? 0 : 0.7, ease: [0.22, 1, 0.36, 1] }}
+                        />
                       </div>
-                      <p className="break-words text-[9px] font-mono text-slate-600 sm:text-[10px]">
-                        {formatNumber(project.completedLengthM)} / {formatNumber(project.totalLengthM)} m
+                      <p className="truncate text-[10px] font-semibold text-blue-800 tabular-nums">
+                        Lũy kế: {formatNumber(project.completedLengthM)} / {formatNumber(project.totalLengthM)} m
                       </p>
                     </div>
-                    <div className="min-w-0 rounded-lg bg-emerald-50/70 p-2 sm:p-2.5">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-emerald-800">Hầm / hố ga</span>
-                        <span className="font-mono text-xs font-black text-emerald-800">{chamberPercent}%</span>
+
+                    {/* Chamber Progress */}
+                    <div className="flex flex-col justify-between rounded-xl border border-emerald-100 bg-emerald-50/60 p-2 sm:p-2.5">
+                      <div className="mb-1 flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-900 sm:text-[11px]">
+                          Hầm / hố ga
+                        </span>
+                        <span className="font-mono text-xs font-black text-emerald-700 sm:text-sm">
+                          {chamberPercent}%
+                        </span>
                       </div>
                       <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-emerald-100">
-                        <div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(chamberPercent, 100)}%` }} />
+                        <motion.div
+                          className="h-full rounded-full bg-emerald-600"
+                          initial={shouldReduceMotion ? false : { width: 0 }}
+                          animate={{ width: `${Math.min(chamberPercent, 100)}%` }}
+                          transition={{ duration: shouldReduceMotion ? 0 : 0.7, ease: [0.22, 1, 0.36, 1] }}
+                        />
                       </div>
-                      <p className="break-words text-[9px] font-mono text-slate-600 sm:text-[10px]">
-                        {formatNumber(project.completedChambers)} / {formatNumber(project.totalChambers)} hầm
+                      <p className="truncate text-[10px] font-semibold text-emerald-800 tabular-nums">
+                        Lũy kế: {formatNumber(project.completedChambers)} / {formatNumber(project.totalChambers)} hố ga
                       </p>
                     </div>
                   </div>
+
+                  {/* 4. Streamlined Details Collapsible Button */}
+                  <button
+                    type="button"
+                    aria-expanded={isDetailsOpen}
+                    aria-controls={`project-details-${project.id}`}
+                    onClick={() =>
+                      setExpandedDetailProjectId(isDetailsOpen ? null : project.id)
+                    }
+                    className="mt-2.5 flex h-8 w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-left text-[11px] font-bold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100/80 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    <span>{isDetailsOpen ? 'Thu gọn chi tiết tuyến' : 'Chi tiết tuyến'}</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
+                        isDetailsOpen ? 'rotate-180 text-blue-600' : 'text-slate-400'
+                      }`}
+                    />
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                  {isDetailsOpen && (
+                    <motion.div
+                      id={`project-details-${project.id}`}
+                      initial={shouldReduceMotion ? false : { opacity: 0, height: 0, y: -6 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, y: -4 }}
+                      transition={{ duration: shouldReduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[10px] text-slate-700 sm:grid-cols-2 sm:p-4">
+                        <p className="break-words"><strong>Chủ đầu tư:</strong> {project.investor}</p>
+                        <p className="break-words"><strong>Nhà thầu:</strong> {project.contractors?.length ? project.contractors.map((contractor) => contractor.name).join(', ') : project.contractor}</p>
+                        <p><strong>Thời gian:</strong> {project.startDate.split('-').reverse().join('/')} – {project.finishDate.split('-').reverse().join('/')}</p>
+                        <p><strong>Giá trị hợp đồng:</strong> {formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ VNĐ</p>
+                        <p className="break-words sm:col-span-2"><strong>Vị trí hiện trường:</strong> {project.currentWorkLocation || 'Chưa cập nhật'}</p>
+                        <p className="font-mono"><strong>Mương cáp:</strong> {formatNumber(project.completedLengthM)} / {formatNumber(project.totalLengthM)} m</p>
+                        <p className="font-mono"><strong>Hầm / hố ga:</strong> {formatNumber(project.completedChambers)} / {formatNumber(project.totalChambers)} hầm</p>
+                        <button
+                          type="button"
+                          onClick={() => onGoToMap(project.id)}
+                          aria-label={`Xem bản đồ tuyến ${project.name}`}
+                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 font-bold text-teal-800 transition-colors hover:bg-teal-100 sm:col-span-2 sm:justify-self-start"
+                        >
+                          <MapIcon className="h-3.5 w-3.5" />
+                          Xem bản đồ tuyến
+                        </button>
+                      </div>
                   {projectBulletins.length > 0 && (
-                    <details open={selectedProjectId === project.id} className="group mt-3 border-t border-slate-100 pt-2">
+                    <details open={isDetailsOpen} className="group mt-3 border-t border-slate-100 pt-2">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[10px] font-semibold text-amber-800 marker:hidden">
                         <span className="flex items-center gap-1.5">
                           <AlertTriangle className="h-3.5 w-3.5" />
@@ -968,7 +1366,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       {contractorProgress.map((contractor) => (
                         <details
                           key={contractor.id}
-                          open={selectedProjectId === project.id}
+                          open={isDetailsOpen}
                           className="group min-w-0 rounded-lg bg-slate-50 px-2.5 py-2 text-[10px] sm:text-[11px]"
                         >
                           <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-2 gap-y-1 marker:hidden">
@@ -1061,7 +1459,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     </div>
                   )}
                   {weeklyProgress && (
-                    <details open={selectedProjectId === project.id} className="group mt-2 border-t border-slate-100 pt-2">
+                    <details open={isDetailsOpen} className="group mt-2 border-t border-slate-100 pt-2">
                       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-700 marker:hidden">
                         <span>Tăng trưởng sản lượng: tuần này và tuần trước</span>
                         <span className="text-indigo-700 group-open:hidden">Xem so sánh +</span>
@@ -1130,6 +1528,9 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       </div>
                     </details>
                   )}
+                    </motion.div>
+                  )}
+                  </AnimatePresence>
                 </article>
               );
             })}

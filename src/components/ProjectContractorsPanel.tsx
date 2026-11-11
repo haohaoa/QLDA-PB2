@@ -7,6 +7,7 @@ import { formatNumber } from '../utils/numberFormat';
 import { ProjectContractorRoutePicker } from './ProjectContractorRoutePicker';
 import { getContractorAssessment } from '../utils/contractorAssessment';
 import { getCurrentDateKey } from '../utils/scheduleUtils';
+import { useAppDialog } from './AppDialogProvider';
 
 const CONTRACTOR_COLORS = [
   '#2563eb',
@@ -23,7 +24,7 @@ interface ProjectContractorsPanelProps {
   project: UndergroundProject;
   dailyLogs: DailyLogEntry[];
   isAdmin: boolean;
-  onUpdateProject: (project: UndergroundProject) => boolean;
+  onUpdateProject: (project: UndergroundProject) => Promise<boolean>;
 }
 
 export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = ({
@@ -32,6 +33,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   isAdmin,
   onUpdateProject,
 }) => {
+  const { showAlert, showConfirm } = useAppDialog();
   const contractors = project.contractors || [];
   const today = getCurrentDateKey();
   const [workingPoints, setWorkingPoints] = useState(project.points);
@@ -140,7 +142,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
     setError(null);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmedName = name.trim();
     const startIndex = routePoints.findIndex((point) => point.id === startPointId);
@@ -229,7 +231,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
         )
       : [...updatedExistingContractors, newContractor];
 
-    if (onUpdateProject({
+    if (await onUpdateProject({
       ...project,
       points: workingPoints,
       contractors: nextContractors,
@@ -239,19 +241,19 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
     })) resetForm();
   };
 
-  const handleRemove = (contractor: ProjectContractor) => {
+  const handleRemove = async (contractor: ProjectContractor) => {
     const hasHistory = dailyLogs.some(
       (log) =>
         log.projectId === project.id &&
         getContractorKey(log.contractorName) === getContractorKey(contractor.name)
     );
     if (hasHistory) {
-      window.alert('Không thể xóa nhà thầu đã có nhật ký. Hãy giữ nhà thầu để bảo toàn số liệu lịch sử.');
+      await showAlert('Không thể xóa nhà thầu đã có nhật ký. Hãy giữ nhà thầu để bảo toàn số liệu lịch sử.');
       return;
     }
-    if (!window.confirm(`Xóa nhà thầu “${contractor.name}” khỏi dự án?`)) return;
+    if (!(await showConfirm(`Xóa nhà thầu “${contractor.name}” khỏi dự án?`, 'Xác nhận xóa nhà thầu', 'Xóa'))) return;
     const remainingContractors = contractors.filter((item) => item.id !== contractor.id);
-    if (onUpdateProject({
+    if (await onUpdateProject({
       ...project,
       contractors: remainingContractors,
       contractor: remainingContractors.map((item) => item.name).join(', ') || 'Chưa phân công',

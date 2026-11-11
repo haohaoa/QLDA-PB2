@@ -4,6 +4,7 @@ import { DailyLogEntry, UndergroundProject, PlanType, ProjectStatus, RouteCoordi
 import { FormattedNumberInput } from './FormattedNumberInput';
 import { RouteCoordinatePicker } from './RouteCoordinatePicker';
 import { ProjectContractorsPanel } from './ProjectContractorsPanel';
+import { useAppDialog } from './AppDialogProvider';
 import { formatNumber } from '../utils/numberFormat';
 import { generateProjectCode } from '../utils/projectCode';
 import {
@@ -38,12 +39,12 @@ interface ProjectManagementProps {
     bulletins: number;
     planTypes: number;
   }>;
-  onAddPlanType: (planType: PlanType) => boolean;
-  onUpdatePlanType: (planType: PlanType) => boolean;
-  onDeletePlanType: (planTypeId: string) => boolean;
-  onAddProject: (project: UndergroundProject) => boolean;
-  onUpdateProject: (project: UndergroundProject) => boolean;
-  onDeleteProject: (projectId: string) => void;
+  onAddPlanType: (planType: PlanType) => Promise<boolean>;
+  onUpdatePlanType: (planType: PlanType) => Promise<boolean>;
+  onDeletePlanType: (planTypeId: string) => Promise<boolean>;
+  onAddProject: (project: UndergroundProject) => Promise<boolean>;
+  onUpdateProject: (project: UndergroundProject) => Promise<boolean>;
+  onDeleteProject: (projectId: string) => Promise<void>;
   onSelectProjectOnMap: (projectId: string) => void;
   isAdmin: boolean;
   onOpenLogin?: () => void;
@@ -65,6 +66,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   isAdmin,
   onOpenLogin,
 }) => {
+  const { showAlert, showConfirm } = useAppDialog();
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingPlanTypeId, setEditingPlanTypeId] = useState<string | null>(null);
@@ -138,9 +140,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setTurnPoints(turnPoints.filter((p) => p.id !== id));
   };
 
-  const handleProjectStatusChange = (project: UndergroundProject, status: ProjectStatus) => {
+  const handleProjectStatusChange = async (project: UndergroundProject, status: ProjectStatus) => {
     if ((project.status || 'in_progress') === status) return;
-    onUpdateProject({ ...project, status });
+    await onUpdateProject({ ...project, status });
   };
 
   const handleUpdateTurnPointName = (id: string, name: string) => {
@@ -169,7 +171,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setIsProjectFormOpen(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !planTypeId) return;
 
@@ -221,7 +223,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
           const endIndex = points.findIndex((point) => point.id === contractor.endPointId);
           return startIndex < 0 || endIndex <= startIndex;
         })) {
-          window.alert('Không thể xóa hoặc đảo thứ tự mốc đang được nhà thầu sử dụng làm điểm đầu/cuối đoạn tuyến.');
+          void showAlert('Không thể xóa hoặc đảo thứ tự mốc đang được nhà thầu sử dụng làm điểm đầu/cuối đoạn tuyến.');
           return;
         }
         const updated: UndergroundProject = {
@@ -246,7 +248,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
           points,
           contractors: updatedContractors,
         };
-        if (!onUpdateProject(updated)) return;
+        if (!(await onUpdateProject(updated))) return;
         setSavedNotice(`Đã cập nhật dự án: ${name}`);
       }
     } else {
@@ -299,7 +301,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         ],
       };
 
-      if (!onAddProject(newProject)) return;
+      if (!(await onAddProject(newProject))) return;
       setContractorPanelProjectId(newProject.id);
       setSavedNotice(`Đã tạo thành công Dự án ngầm: ${name}`);
     }
@@ -349,30 +351,30 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSavePlanType = (event: React.FormEvent) => {
+  const handleSavePlanType = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmedName = planTypeName.trim();
     if (!trimmedName) return;
 
-    const saved = editingPlanTypeId
+    const saved = await (editingPlanTypeId
       ? onUpdatePlanType({ id: editingPlanTypeId, name: trimmedName })
-      : onAddPlanType({ id: `plan-type-${Date.now()}`, name: trimmedName });
+      : onAddPlanType({ id: `plan-type-${Date.now()}`, name: trimmedName }));
     if (saved) {
       setPlanTypeName('');
       setEditingPlanTypeId(null);
     }
   };
 
-  const handleRemovePlanType = (planType: PlanType) => {
+  const handleRemovePlanType = async (planType: PlanType) => {
     if (planTypes.length <= 1) {
-      window.alert('Cần giữ lại ít nhất một loại kế hoạch.');
+      await showAlert('Cần giữ lại ít nhất một loại kế hoạch.');
       return;
     }
     if (projects.some((project) => (project.planTypeId || 'plan-type-unclassified') === planType.id)) {
-      window.alert(`Không thể xóa “${planType.name}” vì đang được sử dụng bởi dự án.`);
+      await showAlert(`Không thể xóa “${planType.name}” vì đang được sử dụng bởi dự án.`);
       return;
     }
-    onDeletePlanType(planType.id);
+    await onDeletePlanType(planType.id);
   };
 
   const handleExportBackup = async () => {
@@ -393,7 +395,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const handleBackupFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!window.confirm('Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại bằng dữ liệu trong tệp. Bạn có muốn tiếp tục không?')) {
+    if (!(await showConfirm(
+      'Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại bằng dữ liệu trong tệp. Bạn có muốn tiếp tục không?',
+      'Xác nhận khôi phục dữ liệu',
+      'Khôi phục'
+    ))) {
       event.target.value = '';
       return;
     }

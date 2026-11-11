@@ -24,9 +24,9 @@ import {
 interface BulletinsBoardProps {
   bulletins: SiteBulletin[];
   projects: UndergroundProject[];
-  onAddBulletin: (bulletin: SiteBulletin) => boolean;
-  onUpdateBulletin: (bulletin: SiteBulletin) => boolean;
-  onDeleteBulletin: (id: string) => void;
+  onAddBulletin: (bulletin: SiteBulletin) => Promise<boolean>;
+  onUpdateBulletin: (bulletin: SiteBulletin) => Promise<boolean>;
+  onDeleteBulletin: (id: string) => Promise<void>;
   onSelectProjectDetail: (projectId: string) => void;
   isAdmin: boolean;
   filterInitialProjectId?: string;
@@ -93,7 +93,7 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
     setShowCreateModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
 
@@ -115,7 +115,7 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
         documentRefNumber: documentRefNumber.trim() || undefined,
         severity,
       };
-      if (!onUpdateBulletin(updated)) return;
+      if (!(await onUpdateBulletin(updated))) return;
     } else {
       const newBulletin: SiteBulletin = {
         id: `blt-${Date.now()}`,
@@ -130,14 +130,14 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
         severity,
         isActive: true,
       };
-      if (!onAddBulletin(newBulletin)) return;
+      if (!(await onAddBulletin(newBulletin))) return;
     }
 
     setShowCreateModal(false);
   };
 
-  const handleToggleActive = (b: SiteBulletin) => {
-    onUpdateBulletin({ ...b, isActive: !b.isActive });
+  const handleToggleActive = async (b: SiteBulletin) => {
+    await onUpdateBulletin({ ...b, isActive: !b.isActive });
   };
 
   const getCategoryLabel = (cat: SiteBulletin['category']) => {

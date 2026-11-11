@@ -504,12 +504,12 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
               Nguồn Lực / Đội Thi Công Trong Ngày:
             </span>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <label
-                className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs transition-colors ${
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer text-xs font-bold transition-all ${
                   resourceType === 'working'
-                    ? 'bg-blue-50 border-blue-400 text-blue-900 font-bold'
-                    : 'bg-white border-slate-200 text-slate-700'
+                    ? 'bg-blue-50/80 border-blue-600 text-blue-900 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                 }`}
               >
                 <input
@@ -517,16 +517,16 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                   name="resourceType"
                   checked={resourceType === 'working'}
                   onChange={() => setResourceType('working')}
-                  className="text-blue-600"
+                  className="w-4 h-4 text-blue-600"
                 />
                 <span>Đi làm</span>
               </label>
 
               <label
-                className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs transition-colors ${
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer text-xs font-bold transition-all ${
                   resourceType === 'stopped'
-                    ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold'
-                    : 'bg-white border-slate-200 text-slate-700'
+                    ? 'bg-amber-50/80 border-amber-500 text-amber-900 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                 }`}
               >
                 <input
@@ -534,7 +534,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                   name="resourceType"
                   checked={resourceType === 'stopped'}
                   onChange={() => setResourceType('stopped')}
-                  className="text-amber-600"
+                  className="w-4 h-4 text-amber-600"
                 />
                 <span>Nghỉ</span>
               </label>
@@ -577,52 +577,56 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
               Khối lượng hoàn thành trong ngày:
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Đào phui ngày (m):
-                </label>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-blue-50/30 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700">Đào phui:</label>
+                  <span className="text-[10px] font-semibold text-slate-400">mét</span>
+                </div>
                 <FormattedNumberInput
                   min={0}
                   value={excavationToday === '' ? '' : Number(excavationToday)}
                   onValueChange={(value) => setExcavationToday(value === '' ? '' : String(value))}
-                  className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                   required={resourceType === 'working'}
                 />
               </div>
 
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Lắp ống ngày (m):
-                </label>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-blue-50/30 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700">Lắp ống:</label>
+                  <span className="text-[10px] font-semibold text-slate-400">mét</span>
+                </div>
                 <FormattedNumberInput
                   min={0}
                   value={pipeLaidToday}
                   onValueChange={(value) => setPipeLaidToday(value === '' ? 0 : value)}
-                  className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
 
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Đổ hố ga ngày (hầm):
-                </label>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-blue-50/30 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700">Đổ hố ga:</label>
+                  <span className="text-[10px] font-semibold text-slate-400">hầm</span>
+                </div>
                 <FormattedNumberInput
                   min={0}
                   value={chambersToday}
                   onValueChange={(value) => setChambersToday(value === '' ? 0 : value)}
-                  className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
 
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Hoàn trả thảm (m):
-                </label>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-blue-50/30 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700">Hoàn trả thảm:</label>
+                  <span className="text-[10px] font-semibold text-slate-400">mét</span>
+                </div>
                 <FormattedNumberInput
                   min={0}
                   value={restoredToday}
                   onValueChange={(value) => setRestoredToday(value === '' ? 0 : value)}
-                  className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -729,14 +733,14 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
 
           {/* SECTION: BIÊN BẢN HIỆN TRƯỜNG (LÀM SAI HOẶC KHÔNG ĐÚNG BẢN VẼ THIẾT KẾ) */}
           <div className="bg-red-50/70 border-2 border-red-200 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2">
-                <FileWarning className="w-4 h-4 text-red-600" />
-                <span className="font-extrabold text-sm text-red-950 uppercase tracking-tight">
+                <FileWarning className="w-4 h-4 text-red-600 shrink-0" />
+                <span className="font-extrabold text-xs sm:text-sm text-red-950 uppercase tracking-tight">
                   Lập Biên Bản Hiện Trường (Sai Bản Vẽ Thiết Kế / Vi Phạm)
                 </span>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto rounded-lg bg-white/90 border border-red-200 px-2.5 py-1 shadow-2xs">
                 <input
                   type="checkbox"
                   checked={hasViolation}
@@ -971,7 +975,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 shrink-0">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200 shrink-0">
             <button
               type="button"
               onClick={handleClose}
@@ -982,7 +986,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 isDeletingDailyPhoto ||
                 isSubmitting
               }
-              className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl font-medium"
+              className="flex-1 sm:flex-none px-4 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl font-bold text-xs transition"
             >
               Hủy
             </button>
@@ -996,10 +1000,10 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 isSubmitting ||
                 requiresContractorAssignment
               }
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-xs transition-all disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting
-                ? <><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin" /> Đang kiểm tra dữ liệu mới nhất...</>
+                ? <><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin" /> Đang kiểm tra dữ liệu...</>
                 : isUploadingDailyPhoto || isUploadingViolationPhoto
                 ? 'Đang tải ảnh...'
                 : isDeletingDailyPhoto || isDeletingViolationPhoto
