@@ -980,13 +980,6 @@ export default function App() {
               dailyLogs={dailyLogs}
               bulletins={bulletins}
               currentDate={today}
-              isAdmin={isAdmin}
-              onGoToDailyReport={(projectId) => {
-                if (projectId) setSelectedProjectId(projectId);
-                setShowDailyProjectPicker(false);
-                setShowMapProjectPicker(false);
-                setCurrentTab('daily-report');
-              }}
               onGoToMap={(projectId) => {
                 setSelectedProjectId(projectId);
                 setShowMapProjectPicker(false);

@@ -18,6 +18,8 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 
+const SUPERVISOR_NAME_STORAGE_KEY = 'qlda-supervisor-name';
+
 interface SupervisorFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -87,6 +89,13 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
     }
   }, [defaultDate]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setSupervisorName(
+      editingLog?.supervisorName || localStorage.getItem(SUPERVISOR_NAME_STORAGE_KEY) || ''
+    );
+  }, [isOpen, editingLog?.id]);
+
   // Resource status
   const [resourceType, setResourceType] = useState<'working' | 'stopped'>(
     editingLog?.stoppageReason || editingLog?.resources.toLowerCase().includes('nghỉ')
@@ -95,16 +104,22 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
   );
   const [customResource, setCustomResource] = useState<string>(editingLog?.resources || '');
   const [excavationToday, setExcavationToday] = useState<string>(
-    editingLog ? String(editingLog.excavationTodayM) : ''
+    editingLog?.excavationTodayM ? String(editingLog.excavationTodayM) : ''
   );
-  const [chambersToday, setChambersToday] = useState<number>(editingLog?.chambersPouredToday || 0);
-  const [pipeLaidToday, setPipeLaidToday] = useState<number>(editingLog?.pipeLaidTodayM || 0);
-  const [restoredToday, setRestoredToday] = useState<number>(editingLog?.restoredTodayM || 0);
+  const [chambersToday, setChambersToday] = useState<number | ''>(
+    editingLog?.chambersPouredToday || ''
+  );
+  const [pipeLaidToday, setPipeLaidToday] = useState<number | ''>(
+    editingLog?.pipeLaidTodayM || ''
+  );
+  const [restoredToday, setRestoredToday] = useState<number | ''>(
+    editingLog?.restoredTodayM || ''
+  );
   const [stoppageReason, setStoppageReason] = useState<string>(
     editingLog?.stoppageReason || ''
   );
   const [supervisorName, setSupervisorName] = useState<string>(
-    editingLog?.supervisorName || 'KS. Nguyễn Văn Hùng'
+    () => editingLog?.supervisorName || localStorage.getItem(SUPERVISOR_NAME_STORAGE_KEY) || ''
   );
   const [notes, setNotes] = useState<string>(editingLog?.notes || '');
   const [dailyPhotoUrls, setDailyPhotoUrls] = useState<string[]>(
@@ -115,6 +130,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
   const [isDeletingDailyPhoto, setIsDeletingDailyPhoto] = useState(false);
   const [dailyPhotoError, setDailyPhotoError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [supervisorStorageError, setSupervisorStorageError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- VIOLATION REPORT / BIÊN BẢN XỬ LÝ SAI BẢN VẼ THIẾT KẾ ---
@@ -295,6 +311,12 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
     setDailyPhotoError(null);
     setSaveError(null);
 
+    const finalSupervisorName = supervisorName.trim();
+    if (!finalSupervisorName) {
+      setSaveError('Vui lòng nhập tên kỹ sư / giám sát hiện trường.');
+      return;
+    }
+
     try {
       await cleanupUncommittedViolationPhotos(hasViolation ? violationPhotoUrls : []);
     } catch (error) {
@@ -332,7 +354,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
         photoUrl: violationPhotoUrls[0],
         deadlineHours: Number(deadlineHours),
         status: violationStatus,
-        supervisorSign: supervisorName,
+        supervisorSign: finalSupervisorName,
       };
     }
 
@@ -343,14 +365,14 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       projectId: currentProject?.id || 'prj-hl-vt',
       projectName: currentProject?.name || 'Ngầm hóa tuyến',
       resources: finalResource,
-      excavationTodayM: Number(excavationToday) || 0,
-      chambersPouredToday: Number(chambersToday) || 0,
-      pipeLaidTodayM: Number(pipeLaidToday) || 0,
-      restoredTodayM: Number(restoredToday) || 0,
+      excavationTodayM: resourceType === 'working' ? Number(excavationToday) || 0 : 0,
+      chambersPouredToday: resourceType === 'working' ? Number(chambersToday) || 0 : 0,
+      pipeLaidTodayM: resourceType === 'working' ? Number(pipeLaidToday) || 0 : 0,
+      restoredTodayM: resourceType === 'working' ? Number(restoredToday) || 0 : 0,
       contractTrenchM: currentProject?.totalLengthM || 2500,
       contractChambers: currentProject?.totalChambers || 30,
       stoppageReason: resourceType === 'stopped' ? stoppageReason.trim() : undefined,
-      supervisorName,
+      supervisorName: finalSupervisorName,
       photoUrls: dailyPhotoUrls.length ? dailyPhotoUrls : undefined,
       photoUrl: dailyPhotoUrls[0],
       notes,
@@ -533,7 +555,13 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                   type="radio"
                   name="resourceType"
                   checked={resourceType === 'stopped'}
-                  onChange={() => setResourceType('stopped')}
+                  onChange={() => {
+                    setResourceType('stopped');
+                    setExcavationToday('');
+                    setChambersToday('');
+                    setPipeLaidToday('');
+                    setRestoredToday('');
+                  }}
                   className="w-4 h-4 text-amber-600"
                 />
                 <span>Nghỉ</span>
@@ -571,7 +599,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
             )}
           </div>
 
-          {/* Row 3: Daily Output Volumes */}
+          {resourceType === 'working' && (
           <div>
             <span className="font-bold text-slate-900 block mb-2">
               Khối lượng hoàn thành trong ngày:
@@ -584,7 +612,11 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={excavationToday === '' ? '' : Number(excavationToday)}
+                  value={
+                    excavationToday === '' || Number(excavationToday) === 0
+                      ? ''
+                      : Number(excavationToday)
+                  }
                   onValueChange={(value) => setExcavationToday(value === '' ? '' : String(value))}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                   required={resourceType === 'working'}
@@ -598,8 +630,8 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={pipeLaidToday}
-                  onValueChange={(value) => setPipeLaidToday(value === '' ? 0 : value)}
+                  value={pipeLaidToday || ''}
+                  onValueChange={setPipeLaidToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
@@ -611,8 +643,8 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={chambersToday}
-                  onValueChange={(value) => setChambersToday(value === '' ? 0 : value)}
+                  value={chambersToday || ''}
+                  onValueChange={setChambersToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
@@ -624,13 +656,14 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={restoredToday}
-                  onValueChange={(value) => setRestoredToday(value === '' ? 0 : value)}
+                  value={restoredToday || ''}
+                  onValueChange={setRestoredToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
               </div>
             </div>
           </div>
+          )}
 
           <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 space-y-3">
             <div className="flex items-center gap-2 font-bold text-blue-950">
@@ -957,10 +990,28 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
               <input
                 type="text"
                 value={supervisorName}
-                onChange={(e) => setSupervisorName(e.target.value)}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setSupervisorName(name);
+                  try {
+                    localStorage.setItem(SUPERVISOR_NAME_STORAGE_KEY, name.trim());
+                    setSupervisorStorageError(null);
+                  } catch (error) {
+                    setSupervisorStorageError(
+                      error instanceof Error
+                        ? `Không thể lưu tên giám sát trên thiết bị: ${error.message}`
+                        : 'Không thể lưu tên giám sát trên thiết bị.'
+                    );
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium"
                 required
               />
+              {supervisorStorageError && (
+                <p role="alert" className="mt-1 text-[11px] font-semibold text-red-700">
+                  {supervisorStorageError}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1">Ghi chú hiện trường:</label>
