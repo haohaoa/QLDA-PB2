@@ -182,10 +182,13 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     });
   };
 
-  const scopedProjects = projects.filter(
+  const planTypeProjects = projects.filter(
     (project) =>
       selectedPlanTypeId === 'all' ||
       (project.planTypeId || 'plan-type-unclassified') === selectedPlanTypeId
+  );
+  const scopedProjects = planTypeProjects.filter(
+    (project) => (project.status || 'in_progress') === 'in_progress'
   );
   const selectedPlanTypeName =
     planTypes.find((type) => type.id === selectedPlanTypeId)?.name || 'Chưa phân loại';
@@ -194,11 +197,9 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     (bulletin) =>
       bulletin.projectId === 'all' || scopedProjectIds.has(bulletin.projectId)
   );
-  const activeProjects = scopedProjects.filter(
-    (project) => (project.status || 'in_progress') === 'in_progress'
-  );
-  const pausedProjectCount = scopedProjects.filter((project) => project.status === 'paused').length;
-  const completedProjectCount = scopedProjects.filter((project) => project.status === 'completed').length;
+  const activeProjects = scopedProjects;
+  const pausedProjectCount = planTypeProjects.filter((project) => project.status === 'paused').length;
+  const completedProjectCount = planTypeProjects.filter((project) => project.status === 'completed').length;
   const latestProgressLogs = getLatestProgressLogs(dailyLogs);
   // Compute aggregate system metrics
   const totalSystemLengthM = scopedProjects.reduce((sum, p) => sum + p.totalLengthM, 0);
