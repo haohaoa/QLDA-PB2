@@ -12,7 +12,7 @@ npm run build:gas
 
 Lệnh này build giao diện và ghi bản HTML tự chứa mới vào `QLDA/Index.html`.
 
-Trang tổng quan chỉ hiển thị và tính tiến độ các dự án đang thực hiện. Dự án tạm ngưng hoặc hoàn tất không xuất hiện trong biểu đồ, chỉ số tổng hợp và danh sách chi tiết; thẻ danh mục vẫn hiển thị số lượng dự án theo trạng thái.
+Trang tổng quan và trang báo cáo chỉ hiển thị dự án đang thực hiện. Dự án tạm ngưng hoặc hoàn tất không xuất hiện trong biểu đồ, chỉ số tiến độ, danh sách lựa chọn, tra cứu và báo cáo; thẻ danh mục trên trang tổng quan vẫn hiển thị số lượng dự án theo trạng thái.
 
 ## Thiết lập lần đầu
 

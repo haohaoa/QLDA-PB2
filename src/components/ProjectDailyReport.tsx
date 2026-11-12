@@ -146,11 +146,11 @@ function getDailyTeamCount(logs: DailyLogEntry[]): number {
 const PROJECT_PICKER_PAGE_SIZE = 20;
 
 export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
-  projects,
+  projects: allProjects,
   planTypes,
   dailyLogs,
   bulletins = [],
-  selectedProjectId,
+  selectedProjectId: requestedProjectId,
   onSelectProjectId,
   selectedContractorKey,
   onSelectContractorKey,
@@ -168,6 +168,11 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   onOpenLogin,
   initialViewMode = 'daily',
 }) => {
+  const projects = allProjects.filter((project) => (project.status || 'in_progress') === 'in_progress');
+  const selectedProjectId =
+    requestedProjectId === 'all' || projects.some((project) => project.id === requestedProjectId)
+      ? requestedProjectId
+      : 'all';
   const shouldReduceMotion = useReducedMotion();
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>(initialViewMode);
   const [copiedZalo, setCopiedZalo] = useState(false);
@@ -298,7 +303,8 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
     return [...contractors.entries()].map(([key, name]) => ({ key, name }));
   })();
   const rangeResultLogs = rangeQuery
-    ? dailyLogs
+    ? projects.some((project) => project.id === rangeQuery.projectId)
+      ? dailyLogs
         .filter(
           (log) =>
             log.projectId === rangeQuery.projectId &&
@@ -312,6 +318,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             left.date.localeCompare(right.date) ||
             left.contractorName.localeCompare(right.contractorName, 'vi')
         )
+      : []
     : [];
   const reportedContractorProjects = new Set(
     dailyLogs
@@ -376,6 +383,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
 
   // Filter logs for the selected project, date, and contractor.
   const filteredLogs = dailyLogs
+    .filter((log) => projectById.has(log.projectId))
     .filter((log) => (selectedProjectId === 'all' ? true : log.projectId === selectedProjectId))
     .filter((log) => log.date === selectedDate)
     .filter((log) =>
@@ -693,6 +701,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   // Get status for each date on calendar
   const getDateStatus = (dateStr: string) => {
     const dayLogs = dailyLogs
+      .filter((log) => projectById.has(log.projectId))
       .filter((l) => (selectedProjectId === 'all' ? true : l.projectId === selectedProjectId))
       .filter((l) => l.date === dateStr)
       .filter((log) =>
