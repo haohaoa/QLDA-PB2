@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Sidebar, MainNavTab } from './components/Sidebar';
 import { OverviewDashboard } from './components/OverviewDashboard';
@@ -30,10 +30,15 @@ import {
   synchronizeProjectProgress,
 } from './utils/progressUtils';
 import {
-  AppDataToSave,
+  deleteRow,
+  fetchDatabase,
+  findLegacyAppData,
   isGoogleAppsScript,
-  loadAppData,
-  saveAppData,
+  isRemoteDatabaseConfigured,
+  migrateInlineDailyLogImages,
+  migrateOldJsonToSql,
+  saveBatch,
+  saveRow,
   verifyEditPassword,
 } from './utils/appDataStorage';
 import { getCurrentDateKey, isProjectActiveOnDate } from './utils/scheduleUtils';
@@ -64,93 +69,11 @@ const includeUnclassifiedPlanType = (
     ? [...planTypes.filter((planType) => planType.id !== UNCLASSIFIED_PLAN_TYPE.id), UNCLASSIFIED_PLAN_TYPE]
     : planTypes.filter((planType) => planType.id !== UNCLASSIFIED_PLAN_TYPE.id);
 
-const snapshotsEqual = (left: AppDataToSave, right: AppDataToSave) =>
-  JSON.stringify(left) === JSON.stringify(right);
-
-function mergeCollection<T extends { id: string }>(
-  base: T[],
-  local: T[],
-  remote: T[]
-): { records: T[]; conflicts: number } {
-  const baseById = new Map(base.map((record) => [record.id, record]));
-  const localById = new Map(local.map((record) => [record.id, record]));
-  const remoteById = new Map(remote.map((record) => [record.id, record]));
-  const ids = [...new Set([...remote, ...local, ...base].map((record) => record.id))];
-  const records: T[] = [];
-  let conflicts = 0;
-
-  ids.forEach((id) => {
-    const baseRecord = baseById.get(id);
-    const localRecord = localById.get(id);
-    const remoteRecord = remoteById.get(id);
-    const localChanged = JSON.stringify(localRecord) !== JSON.stringify(baseRecord);
-    const remoteChanged = JSON.stringify(remoteRecord) !== JSON.stringify(baseRecord);
-
-    if (!localChanged) {
-      if (remoteRecord) records.push(remoteRecord);
-    } else if (!remoteChanged) {
-      if (localRecord) records.push(localRecord);
-    } else if (JSON.stringify(localRecord) === JSON.stringify(remoteRecord)) {
-      if (remoteRecord) records.push(remoteRecord);
-    } else {
-      conflicts += 1;
-      if (remoteRecord) records.push(remoteRecord);
-    }
-  });
-
-  return { records, conflicts };
-}
-
-function mergeSnapshots(
-  base: AppDataToSave,
-  local: AppDataToSave,
-  remote: AppDataToSave
-): { snapshot: AppDataToSave; conflicts: number } {
-  const projects = mergeCollection(base.projects, local.projects, remote.projects);
-  const dailyLogs = mergeCollection(base.dailyLogs, local.dailyLogs, remote.dailyLogs);
-  const bulletins = mergeCollection(base.bulletins, local.bulletins, remote.bulletins);
-  const planTypes = mergeCollection(base.planTypes, local.planTypes, remote.planTypes);
-  const remoteLogKeys = new Map(
-    remote.dailyLogs.map((log) => [
-      `${log.date}|${log.projectId}|${getContractorKey(log.contractorName)}`,
-      log.id,
-    ])
-  );
-  const baseLogById = new Map(base.dailyLogs.map((log) => [log.id, log]));
-  const localLogById = new Map(local.dailyLogs.map((log) => [log.id, log]));
-  let duplicateReportConflicts = 0;
-  const mergedDailyLogs = dailyLogs.records.filter((log) => {
-    const key = `${log.date}|${log.projectId}|${getContractorKey(log.contractorName)}`;
-    const remoteId = remoteLogKeys.get(key);
-    const localChanged =
-      JSON.stringify(localLogById.get(log.id)) !== JSON.stringify(baseLogById.get(log.id));
-    if (remoteId && remoteId !== log.id && localChanged) {
-      duplicateReportConflicts += 1;
-      return false;
-    }
-    return true;
-  });
-
-  return {
-    snapshot: {
-      projects: projects.records,
-      dailyLogs: mergedDailyLogs,
-      bulletins: bulletins.records,
-      planTypes: planTypes.records,
-    },
-    conflicts:
-      projects.conflicts +
-      dailyLogs.conflicts +
-      bulletins.conflicts +
-      planTypes.conflicts +
-      duplicateReportConflicts,
-  };
-}
-
 export default function App() {
   const { showAlert, showConfirm } = useAppDialog();
   const shouldReduceMotion = useReducedMotion();
   const isAppsScript = isGoogleAppsScript();
+  const usesRemoteDatabase = isAppsScript || isRemoteDatabaseConfigured();
   const today = getCurrentDateKey();
 
   const [currentTab, setCurrentTab] = useState<MainNavTab>('overview');
@@ -161,19 +84,15 @@ export default function App() {
   const [selectedReportContractorKey, setSelectedReportContractorKey] = useState('all');
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [sessionToken, setSessionToken] = useState<string | null>(() =>
-    isAppsScript ? localStorage.getItem('qlda-edit-session') : null
+    usesRemoteDatabase ? localStorage.getItem('qlda-edit-session') : null
   );
   const [canWriteData, setCanWriteData] = useState(false);
-  const isAdmin = !isAppsScript || canWriteData;
-  const [isDataLoaded, setIsDataLoaded] = useState(!isAppsScript);
+  const isAdmin = !usesRemoteDatabase || canWriteData;
+  const [isDataLoaded, setIsDataLoaded] = useState(!usesRemoteDatabase);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
   const [dataSaveError, setDataSaveError] = useState<string | null>(null);
   const [dataSyncNotice, setDataSyncNotice] = useState<string | null>(null);
-  const [saveRetry, setSaveRetry] = useState(0);
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
-  const dataRevisionRef = useRef<number | null>(null);
-  const persistedDataRef = useRef<AppDataToSave | null>(null);
-  const saveGenerationRef = useRef(0);
+  const [dataReload, setDataReload] = useState(0);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -189,32 +108,67 @@ export default function App() {
   const [planTypes, setPlanTypes] = useState<PlanType[]>(() =>
     includeUnclassifiedPlanType(INITIAL_PLAN_TYPES, INITIAL_PROJECTS)
   );
-  const currentDataRef = useRef<AppDataToSave>({ projects, dailyLogs, bulletins, planTypes });
-  currentDataRef.current = { projects, dailyLogs, bulletins, planTypes };
-
   useEffect(() => {
-    if (!isAppsScript) return;
+    if (!usesRemoteDatabase) return;
 
-    saveGenerationRef.current += 1;
     let isMounted = true;
-    loadAppData(sessionToken || undefined)
-      .then((data) => {
+    fetchDatabase(sessionToken || undefined)
+      .then(async (loadedData) => {
         if (!isMounted) return;
+        setDataLoadError(null);
+        setDataSaveError(null);
+        const hasRows = [
+          loadedData.projects,
+          loadedData.dailyLogs,
+          loadedData.bulletins,
+          loadedData.planTypes,
+        ].some((rows) => rows.length > 0);
+        const legacyData = hasRows ? null : findLegacyAppData();
+        let data = loadedData;
+        if (hasRows && loadedData.canWrite && sessionToken) {
+          const migration = await migrateInlineDailyLogImages(sessionToken);
+          if (migration.migrated > 0) data = await fetchDatabase(sessionToken);
+        }
+        if (legacyData && loadedData.canWrite && sessionToken) {
+          await migrateOldJsonToSql(legacyData, sessionToken);
+          data = await fetchDatabase(sessionToken);
+          setDataSyncNotice('Đã chuyển dữ liệu JSON cũ sang các bảng Google Sheets.');
+        } else if (legacyData && !loadedData.canWrite) {
+          setDataSyncNotice('Đã tìm thấy dữ liệu cũ trên trình duyệt. Đăng nhập Admin để chuyển dữ liệu lên Google Sheets.');
+        }
 
-        dataRevisionRef.current = data.revision;
-        persistedDataRef.current = {
-          projects: data.projects,
-          dailyLogs: data.dailyLogs,
-          bulletins: data.bulletins,
-          planTypes: data.planTypes,
-        };
-        const loadedProjects = data.isInitialized ? data.projects : INITIAL_PROJECTS;
-        const loadedDailyLogs = data.isInitialized ? data.dailyLogs : INITIAL_DAILY_LOGS;
-        const loadedPlanTypes = data.planTypes.length ? data.planTypes : INITIAL_PLAN_TYPES;
+        if (
+          !hasRows &&
+          !legacyData &&
+          !loadedData.isInitialized &&
+          loadedData.canWrite &&
+          sessionToken
+        ) {
+          await Promise.all([
+            saveBatch('projects', INITIAL_PROJECTS, sessionToken),
+            saveBatch('dailyLogs', INITIAL_DAILY_LOGS, sessionToken),
+            saveBatch('bulletins', INITIAL_BULLETINS, sessionToken),
+            saveBatch('planTypes', INITIAL_PLAN_TYPES, sessionToken),
+          ]);
+          data = await fetchDatabase(sessionToken);
+        }
+
+        const hasDatabaseRows = [
+          data.projects,
+          data.dailyLogs,
+          data.bulletins,
+          data.planTypes,
+        ].some((rows) => rows.length > 0);
+        const useInitialData = !data.isInitialized && !hasDatabaseRows;
+        const loadedProjects = useInitialData ? INITIAL_PROJECTS : data.projects;
+        const loadedDailyLogs = useInitialData ? INITIAL_DAILY_LOGS : data.dailyLogs;
+        const loadedPlanTypes = useInitialData
+          ? INITIAL_PLAN_TYPES
+          : data.planTypes;
         const normalizedProjects = normalizeProjectPlanTypes(loadedProjects, loadedPlanTypes);
         setDailyLogs(loadedDailyLogs);
         setProjects(synchronizeProjectProgress(normalizedProjects, loadedDailyLogs));
-        setBulletins(data.isInitialized ? data.bulletins : INITIAL_BULLETINS);
+        setBulletins(useInitialData ? INITIAL_BULLETINS : data.bulletins);
         setPlanTypes(includeUnclassifiedPlanType(loadedPlanTypes, normalizedProjects));
         setCanWriteData(data.canWrite);
         if (!data.canWrite && sessionToken) {
@@ -233,164 +187,50 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [isAppsScript, sessionToken]);
-
-  useEffect(() => {
-    if (!isAppsScript || !isDataLoaded || !canWriteData || !sessionToken || dataLoadError) return;
-
-    const snapshot = { projects, dailyLogs, bulletins, planTypes };
-    const generation = ++saveGenerationRef.current;
-    saveQueue.current = saveQueue.current
-      .then(async () => {
-        if (generation !== saveGenerationRef.current) return;
-        const baseline = persistedDataRef.current;
-        const knownRevision = dataRevisionRef.current;
-        if (!baseline || knownRevision === null || snapshotsEqual(snapshot, baseline)) return;
-
-        let candidate = snapshot;
-        let expectedGeneration = generation;
-        let conflicts = 0;
-        let sawRemoteUpdate = false;
-
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          if (expectedGeneration !== saveGenerationRef.current) return;
-          const latest = await loadAppData(sessionToken);
-          if (expectedGeneration !== saveGenerationRef.current) return;
-
-          const latestSnapshot: AppDataToSave = {
-            projects: latest.projects,
-            dailyLogs: latest.dailyLogs,
-            bulletins: latest.bulletins,
-            planTypes: latest.planTypes,
-          };
-          if (latest.revision !== (attempt === 0 ? knownRevision : dataRevisionRef.current)) {
-            sawRemoteUpdate = true;
-            const merge = mergeSnapshots(
-              persistedDataRef.current || baseline,
-              candidate,
-              latestSnapshot
-            );
-            conflicts += merge.conflicts;
-            const mergedProjects = synchronizeProjectProgress(
-              normalizeProjectPlanTypes(merge.snapshot.projects, merge.snapshot.planTypes),
-              merge.snapshot.dailyLogs
-            );
-            candidate = {
-              ...merge.snapshot,
-              projects: mergedProjects,
-              planTypes: includeUnclassifiedPlanType(merge.snapshot.planTypes, mergedProjects),
-            };
-            expectedGeneration = ++saveGenerationRef.current;
-          }
-
-          if (snapshotsEqual(candidate, latestSnapshot)) {
-            if (expectedGeneration !== saveGenerationRef.current) return;
-            dataRevisionRef.current = latest.revision;
-            persistedDataRef.current = latestSnapshot;
-            setProjects(candidate.projects);
-            setDailyLogs(candidate.dailyLogs);
-            setBulletins(candidate.bulletins);
-            setPlanTypes(candidate.planTypes);
-            if (conflicts > 0) {
-              setDataSyncNotice(
-                'Báo cáo này đã được người khác cập nhật trước đó. Hệ thống đã tải bản mới nhất và không ghi đè dữ liệu.'
-              );
-            } else if (sawRemoteUpdate) {
-              setDataSyncNotice('Đã đồng bộ dữ liệu mới nhất trước khi lưu.');
-            }
-            setDataSaveError(null);
-            return;
-          }
-
-          try {
-            const nextRevision = await saveAppData(
-              candidate,
-              sessionToken,
-              latest.revision
-            );
-            dataRevisionRef.current = nextRevision;
-            persistedDataRef.current = candidate;
-            if (sawRemoteUpdate) {
-              const stateToApply =
-                expectedGeneration === saveGenerationRef.current
-                  ? candidate
-                  : (() => {
-                      const rebase = mergeSnapshots(
-                        snapshot,
-                        currentDataRef.current,
-                        candidate
-                      );
-                      conflicts += rebase.conflicts;
-                      const rebasedProjects = synchronizeProjectProgress(
-                        normalizeProjectPlanTypes(
-                          rebase.snapshot.projects,
-                          rebase.snapshot.planTypes
-                        ),
-                        rebase.snapshot.dailyLogs
-                      );
-                      return {
-                        ...rebase.snapshot,
-                        projects: rebasedProjects,
-                        planTypes: includeUnclassifiedPlanType(
-                          rebase.snapshot.planTypes,
-                          rebasedProjects
-                        ),
-                      };
-                    })();
-              setProjects(stateToApply.projects);
-              setDailyLogs(stateToApply.dailyLogs);
-              setBulletins(stateToApply.bulletins);
-              setPlanTypes(stateToApply.planTypes);
-              if (conflicts > 0) {
-                setDataSyncNotice(
-                  `Có ${conflicts} mục được cập nhật đồng thời. Hệ thống giữ bản mới nhất cho mục bị trùng và lưu các thay đổi không xung đột.`
-                );
-              } else {
-                setDataSyncNotice('Đã đồng bộ dữ liệu mới nhất trước khi lưu.');
-              }
-            }
-            setDataSaveError(null);
-            return;
-          } catch (error) {
-            if (
-              error instanceof Error &&
-              error.message.includes('DATA_REVISION_CONFLICT') &&
-              attempt < 2
-            ) {
-              if (expectedGeneration !== saveGenerationRef.current) return;
-              expectedGeneration = ++saveGenerationRef.current;
-              continue;
-            }
-            throw error;
-          }
-        }
-
-        throw new Error('Dữ liệu đang được cập nhật liên tục. Hãy thử lưu lại sau ít phút.');
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.message.includes('Phiên chỉnh sửa đã hết hạn')) {
-          localStorage.removeItem('qlda-edit-session');
-          setSessionToken(null);
-          setCanWriteData(false);
-        }
-        setDataSaveError(
-          error instanceof Error ? error.message : 'Không thể lưu dữ liệu vào Google Sheets.'
-        );
-      });
-  }, [
-    isAppsScript,
-    isDataLoaded,
-    canWriteData,
-    sessionToken,
-    dataLoadError,
-    projects,
-    dailyLogs,
-    bulletins,
-    planTypes,
-    saveRetry,
-  ]);
+  }, [usesRemoteDatabase, sessionToken, dataReload]);
 
   const confirmChange = (action: string) => showConfirm(`Bạn có chắc chắn muốn ${action} không?`);
+  const withDataWrite = async <T,>(write: () => Promise<T>): Promise<T> => {
+    try {
+      const result = await write();
+      setDataSaveError(null);
+      return result;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Phiên chỉnh sửa đã hết hạn')) {
+        localStorage.removeItem('qlda-edit-session');
+        setSessionToken(null);
+        setCanWriteData(false);
+      }
+      setDataSaveError(
+        error instanceof Error ? error.message : 'Không thể lưu dữ liệu vào Google Sheets.'
+      );
+      throw error;
+    }
+  };
+  const persistRows = async <T extends { id: string },>(
+    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    rows: T[]
+  ) => {
+    if (!usesRemoteDatabase || rows.length === 0) return;
+    if (!sessionToken) throw new Error('Hãy đăng nhập Admin trước khi lưu dữ liệu.');
+    await withDataWrite(() => saveBatch(table, rows, sessionToken));
+  };
+  const persistRow = async <T extends { id: string },>(
+    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    row: T
+  ) => {
+    if (!usesRemoteDatabase) return;
+    if (!sessionToken) throw new Error('Hãy đăng nhập Admin trước khi lưu dữ liệu.');
+    await withDataWrite(() => saveRow(table, row, sessionToken));
+  };
+  const persistDelete = async (
+    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    id: string
+  ) => {
+    if (!usesRemoteDatabase) return;
+    if (!sessionToken) throw new Error('Hãy đăng nhập Admin trước khi xóa dữ liệu.');
+    await withDataWrite(() => deleteRow(table, id, sessionToken));
+  };
 
   // Calculate today unsubmitted project count
   const activeProjectsToday = projects.filter((project) => isProjectActiveOnDate(project, today));
@@ -422,174 +262,133 @@ export default function App() {
 
   // Daily Log Handlers
   const handleSaveLog = async (entryData: DailyLogDraft): Promise<boolean> => {
-    let confirmed = false;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const serverData = isAppsScript
-        ? await loadAppData(sessionToken || undefined)
-        : null;
-      const serverProjects = serverData?.isInitialized ? serverData.projects : projects;
-      const serverDailyLogs = serverData?.isInitialized ? serverData.dailyLogs : dailyLogs;
-      const serverBulletins = serverData?.isInitialized ? serverData.bulletins : bulletins;
-      const serverPlanTypes = serverData?.planTypes.length ? serverData.planTypes : planTypes;
-      const normalizedProjects = normalizeProjectPlanTypes(serverProjects, serverPlanTypes);
-      const freshProjects = synchronizeProjectProgress(normalizedProjects, serverDailyLogs);
-      const freshPlanTypes = includeUnclassifiedPlanType(serverPlanTypes, freshProjects);
-      const freshSnapshot: AppDataToSave = {
-        projects: freshProjects,
-        dailyLogs: serverDailyLogs,
-        bulletins: serverBulletins,
-        planTypes: freshPlanTypes,
-      };
+    const serverData = usesRemoteDatabase ? await fetchDatabase(sessionToken || undefined) : null;
+    const hasServerRows = !!serverData && [
+      serverData.projects,
+      serverData.dailyLogs,
+      serverData.bulletins,
+      serverData.planTypes,
+    ].some((rows) => rows.length > 0);
+    const useServerData = !!serverData && (serverData.isInitialized || hasServerRows);
+    const serverProjects = useServerData ? serverData.projects : projects;
+    const serverDailyLogs = useServerData ? serverData.dailyLogs : dailyLogs;
+    const serverPlanTypes = useServerData ? serverData.planTypes : planTypes;
+    const freshProjects = synchronizeProjectProgress(
+      normalizeProjectPlanTypes(serverProjects, serverPlanTypes),
+      serverDailyLogs
+    );
+    const freshPlanTypes = includeUnclassifiedPlanType(serverPlanTypes, freshProjects);
+    const contractorKey = getContractorKey(entryData.contractorName);
+    const duplicate = serverDailyLogs.find(
+      (log) =>
+        log.id !== editingLog?.id &&
+        log.date === entryData.date &&
+        log.projectId === entryData.projectId &&
+        getContractorKey(log.contractorName) === contractorKey
+    );
+    const currentEditingLog = editingLog
+      ? serverDailyLogs.find((log) => log.id === editingLog.id)
+      : undefined;
+    const editingLogChanged =
+      !!editingLog &&
+      (!currentEditingLog ||
+        JSON.stringify(currentEditingLog) !== JSON.stringify(editingLog));
 
-      if (serverData) {
-        saveGenerationRef.current += 1;
-        dataRevisionRef.current = serverData.revision;
-        persistedDataRef.current = freshSnapshot;
-      }
-
-      const contractorKey = getContractorKey(entryData.contractorName);
-      const duplicate = serverDailyLogs.find(
-        (log) =>
-          log.id !== editingLog?.id &&
-          log.date === entryData.date &&
-          log.projectId === entryData.projectId &&
-          getContractorKey(log.contractorName) === contractorKey
+    if (duplicate || editingLogChanged) {
+      setProjects(freshProjects);
+      setDailyLogs(serverDailyLogs);
+      setPlanTypes(freshPlanTypes);
+      setDataSyncNotice(
+        duplicate
+          ? `Báo cáo ngày ${entryData.date} của nhà thầu này đã được người khác lưu. Vui lòng kiểm tra báo cáo mới nhất trước khi nhập tiếp.`
+          : 'Báo cáo đang chỉnh sửa đã được người khác thay đổi hoặc xóa. Đã tải dữ liệu mới nhất; vui lòng mở lại báo cáo.'
       );
-      const currentEditingLog = editingLog
-        ? serverDailyLogs.find((log) => log.id === editingLog.id)
-        : undefined;
-      const editingLogChanged =
-        !!editingLog &&
-        (!currentEditingLog ||
-          JSON.stringify(currentEditingLog) !== JSON.stringify(editingLog));
-
-      const applyFreshData = () => {
-        setProjects(freshProjects);
-        setDailyLogs(serverDailyLogs);
-        setBulletins(serverBulletins);
-        setPlanTypes(freshPlanTypes);
-      };
-
-      if (duplicate || editingLogChanged) {
-        applyFreshData();
-        setDataSyncNotice(
-          duplicate
-            ? `Báo cáo ngày ${entryData.date} của nhà thầu này đã được người khác lưu. Vui lòng kiểm tra báo cáo mới nhất trước khi nhập tiếp.`
-            : 'Báo cáo đang chỉnh sửa đã được người khác thay đổi hoặc xóa. Đã tải dữ liệu mới nhất; vui lòng mở lại báo cáo.'
-        );
-        throw new Error(
-          duplicate
-            ? `Đã có báo cáo ngày ${entryData.date} cho nhà thầu ${entryData.contractorName} trong dự án ${entryData.projectName}. Hệ thống đã chặn lưu trùng.`
-            : 'Báo cáo này đã được người khác cập nhật hoặc xóa. Hệ thống đã chặn ghi đè.'
-        );
-      }
-
-      const reportProject = freshProjects.find((project) => project.id === entryData.projectId);
-      if (!editingLog && reportProject && !hasAssignedProjectContractor(reportProject)) {
-        throw new Error(
-          'Dự án chưa được phân công nhà thầu thi công. Vui lòng phân công nhà thầu trước khi báo cáo tiến độ.'
-        );
-      }
-
-      const sameDayProjectLogs = serverDailyLogs.filter(
-        (log) => log.date === entryData.date && log.projectId === entryData.projectId
+      throw new Error(
+        duplicate
+          ? `Đã có báo cáo ngày ${entryData.date} cho nhà thầu ${entryData.contractorName} trong dự án ${entryData.projectName}. Hệ thống đã chặn lưu trùng.`
+          : 'Báo cáo này đã được người khác cập nhật hoặc xóa. Hệ thống đã chặn ghi đè.'
       );
-      const previousLog = currentEditingLog;
-      if (
-        !confirmed &&
-        !(await confirmChange(
-          `${previousLog ? 'cập nhật' : 'thêm'} báo cáo ngày ${entryData.date} của dự án ${entryData.projectName}`
-        ))
-      ) {
-        return false;
-      }
-      confirmed = true;
-
-      const logsWithoutEdited = previousLog
-        ? serverDailyLogs.filter((log) => log.id !== previousLog.id)
-        : serverDailyLogs;
-      const latestProjectLogs = getLatestProgressLogs(logsWithoutEdited).filter(
-        (log) => log.projectId === entryData.projectId
-      );
-      const existingContractLog = latestProjectLogs.find(
-        (log) => getContractorKey(log.contractorName) === contractorKey
-      );
-      const otherContractLogs = latestProjectLogs.filter(
-        (log) => getContractorKey(log.contractorName) !== contractorKey
-      );
-      const assignedContractor = reportProject?.contractors?.find(
-        (contractor) => getContractorKey(contractor.name) === contractorKey
-      );
-      const updatedEntry: DailyLogEntry = {
-        ...entryData,
-        id: previousLog?.id || `log-${Date.now()}`,
-        stt: previousLog?.stt ?? Math.max(0, ...sameDayProjectLogs.map((log) => log.stt)) + 1,
-        contractTrenchM:
-          existingContractLog?.contractTrenchM ??
-          assignedContractor?.totalLengthM ??
-          Math.max(
-            0,
-            (reportProject?.totalLengthM ?? entryData.contractTrenchM) -
-              otherContractLogs.reduce((total, log) => total + log.contractTrenchM, 0)
-          ),
-        contractChambers:
-          existingContractLog?.contractChambers ??
-          assignedContractor?.totalChambers ??
-          Math.max(
-            0,
-            (reportProject?.totalChambers ?? entryData.contractChambers) -
-              otherContractLogs.reduce((total, log) => total + log.contractChambers, 0)
-          ),
-        cumulativeTrenchM: previousLog?.cumulativeTrenchM ?? 0,
-        cumulativeChambers: previousLog?.cumulativeChambers ?? 0,
-      };
-      const nextDailyLogs = applyDailyLogProgressChange(
-        serverDailyLogs,
-        updatedEntry,
-        previousLog
-      );
-      const nextProjects = synchronizeProjectProgress(freshProjects, nextDailyLogs);
-      const nextSnapshot: AppDataToSave = {
-        ...freshSnapshot,
-        projects: nextProjects,
-        dailyLogs: nextDailyLogs,
-      };
-
-      if (!serverData) {
-        setDailyLogs(nextDailyLogs);
-        setProjects(nextProjects);
-        if (editingLog) setEditingLog(null);
-        return true;
-      }
-
-      try {
-        const nextRevision = await saveAppData(
-          nextSnapshot,
-          sessionToken || '',
-          serverData.revision
-        );
-        dataRevisionRef.current = nextRevision;
-        persistedDataRef.current = nextSnapshot;
-        setDataSaveError(null);
-        setDailyLogs(nextDailyLogs);
-        setProjects(nextProjects);
-        setBulletins(serverBulletins);
-        setPlanTypes(freshPlanTypes);
-        if (editingLog) setEditingLog(null);
-        return true;
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes('DATA_REVISION_CONFLICT') &&
-          attempt < 2
-        ) {
-          continue;
-        }
-        throw error;
-      }
     }
 
-    throw new Error('Dữ liệu đang thay đổi liên tục. Vui lòng thử lưu báo cáo lại.');
+    const reportProject = freshProjects.find((project) => project.id === entryData.projectId);
+    if (!editingLog && reportProject && !hasAssignedProjectContractor(reportProject)) {
+      throw new Error(
+        'Dự án chưa được phân công nhà thầu thi công. Vui lòng phân công nhà thầu trước khi báo cáo tiến độ.'
+      );
+    }
+
+    const sameDayProjectLogs = serverDailyLogs.filter(
+      (log) => log.date === entryData.date && log.projectId === entryData.projectId
+    );
+    const previousLog = currentEditingLog;
+    if (
+      !(await confirmChange(
+        `${previousLog ? 'cập nhật' : 'thêm'} báo cáo ngày ${entryData.date} của dự án ${entryData.projectName}`
+      ))
+    ) {
+      return false;
+    }
+
+    const logsWithoutEdited = previousLog
+      ? serverDailyLogs.filter((log) => log.id !== previousLog.id)
+      : serverDailyLogs;
+    const latestProjectLogs = getLatestProgressLogs(logsWithoutEdited).filter(
+      (log) => log.projectId === entryData.projectId
+    );
+    const existingContractLog = latestProjectLogs.find(
+      (log) => getContractorKey(log.contractorName) === contractorKey
+    );
+    const otherContractLogs = latestProjectLogs.filter(
+      (log) => getContractorKey(log.contractorName) !== contractorKey
+    );
+    const assignedContractor = reportProject?.contractors?.find(
+      (contractor) => getContractorKey(contractor.name) === contractorKey
+    );
+    const updatedEntry: DailyLogEntry = {
+      ...entryData,
+      id: previousLog?.id || `log-${crypto.randomUUID()}`,
+      stt: previousLog?.stt ?? Math.max(0, ...sameDayProjectLogs.map((log) => log.stt)) + 1,
+      contractTrenchM:
+        existingContractLog?.contractTrenchM ??
+        assignedContractor?.totalLengthM ??
+        Math.max(
+          0,
+          (reportProject?.totalLengthM ?? entryData.contractTrenchM) -
+            otherContractLogs.reduce((total, log) => total + log.contractTrenchM, 0)
+        ),
+      contractChambers:
+        existingContractLog?.contractChambers ??
+        assignedContractor?.totalChambers ??
+        Math.max(
+          0,
+          (reportProject?.totalChambers ?? entryData.contractChambers) -
+            otherContractLogs.reduce((total, log) => total + log.contractChambers, 0)
+        ),
+      cumulativeTrenchM: previousLog?.cumulativeTrenchM ?? 0,
+      cumulativeChambers: previousLog?.cumulativeChambers ?? 0,
+    };
+    const nextDailyLogs = applyDailyLogProgressChange(serverDailyLogs, updatedEntry, previousLog);
+    const nextProjects = synchronizeProjectProgress(freshProjects, nextDailyLogs);
+    const changedProjects = nextProjects.filter(
+      (project) =>
+        JSON.stringify(project) !==
+        JSON.stringify(freshProjects.find((item) => item.id === project.id))
+    );
+    setDailyLogs(nextDailyLogs);
+    setProjects(nextProjects);
+    setPlanTypes(freshPlanTypes);
+    try {
+      await Promise.all([
+        persistRow('dailyLogs', updatedEntry),
+        persistRows('projects', changedProjects),
+      ]);
+    } catch (error) {
+      setDailyLogs(serverDailyLogs);
+      setProjects(freshProjects);
+      throw error;
+    }
+    if (editingLog) setEditingLog(null);
+    return true;
   };
 
   const handleAddPlanType = async (planType: PlanType): Promise<boolean> => {
@@ -598,7 +397,14 @@ export default function App() {
       return false;
     }
     if (!(await confirmChange(`thêm loại kế hoạch “${planType.name}”`))) return false;
+    const previous = planTypes;
     setPlanTypes((prev) => [...prev, planType]);
+    try {
+      await persistRow('planTypes', planType);
+    } catch (error) {
+      setPlanTypes(previous);
+      throw error;
+    }
     return true;
   };
 
@@ -614,7 +420,14 @@ export default function App() {
       return false;
     }
     if (!(await confirmChange(`đổi tên loại kế hoạch thành “${updatedPlanType.name}”`))) return false;
+    const previous = planTypes;
     setPlanTypes((prev) => prev.map((item) => (item.id === updatedPlanType.id ? updatedPlanType : item)));
+    try {
+      await persistRow('planTypes', updatedPlanType);
+    } catch (error) {
+      setPlanTypes(previous);
+      throw error;
+    }
     return true;
   };
 
@@ -622,16 +435,42 @@ export default function App() {
     const planType = planTypes.find((item) => item.id === planTypeId);
     if (!planType || planTypeId === UNCLASSIFIED_PLAN_TYPE.id || planTypes.length <= 1) return false;
     if (!(await confirmChange(`xóa loại kế hoạch “${planType.name}”`))) return false;
+    const previous = planTypes;
     setPlanTypes((prev) => prev.filter((item) => item.id !== planTypeId));
+    try {
+      await persistDelete('planTypes', planTypeId);
+    } catch (error) {
+      setPlanTypes(previous);
+      throw error;
+    }
     return true;
   };
 
   const handleDeleteLog = async (id: string) => {
     const log = dailyLogs.find((item) => item.id === id);
     if (!log || !(await confirmChange(`xóa báo cáo ngày ${log.date} của dự án ${log.projectName}`))) return;
+    const previousLogs = dailyLogs;
+    const previousProjects = projects;
     const nextDailyLogs = removeDailyLogProgress(dailyLogs, log);
+    const nextProjects = synchronizeProjectProgress(projects, nextDailyLogs);
+    const changedProjects = nextProjects.filter(
+      (project) =>
+        JSON.stringify(project) !==
+        JSON.stringify(projects.find((item) => item.id === project.id))
+    );
     setDailyLogs(nextDailyLogs);
-    setProjects((prev) => synchronizeProjectProgress(prev, nextDailyLogs));
+    setProjects(nextProjects);
+    try {
+      await Promise.all([
+        persistDelete('dailyLogs', id),
+        persistRows('projects', changedProjects),
+      ]);
+    } catch (error) {
+      setDailyLogs(previousLogs);
+      setProjects(previousProjects);
+      setDataReload((current) => current + 1);
+      throw error;
+    }
   };
 
   const handleImportDailyLogs = async (importedLogs: ImportedDailyLog[]) => {
@@ -759,8 +598,23 @@ export default function App() {
     }
 
     const nextDailyLogs = applyDailyLogProgressChanges(dailyLogs, changes);
+    const nextProjects = synchronizeProjectProgress(projects, nextDailyLogs);
+    const changedProjects = nextProjects.filter(
+      (project) =>
+        JSON.stringify(project) !==
+        JSON.stringify(projects.find((item) => item.id === project.id))
+    );
     setDailyLogs(nextDailyLogs);
-    setProjects((prev) => synchronizeProjectProgress(prev, nextDailyLogs));
+    setProjects(nextProjects);
+    try {
+      await Promise.all([
+        persistRows('dailyLogs', changes),
+        persistRows('projects', changedProjects),
+      ]);
+    } catch (error) {
+      setDataReload((current) => current + 1);
+      throw error;
+    }
     return { added: addedCount, updated: updatedCount };
   };
 
@@ -772,13 +626,38 @@ export default function App() {
     const backup = await importDataBackupFromExcel(file);
     const normalizedProjects = normalizeProjectPlanTypes(backup.projects, backup.planTypes);
     const restoredPlanTypes = includeUnclassifiedPlanType(backup.planTypes, normalizedProjects);
-    setProjects(synchronizeProjectProgress(normalizedProjects, backup.dailyLogs));
+    const restoredProjects = synchronizeProjectProgress(normalizedProjects, backup.dailyLogs);
+    const previousData = { projects, dailyLogs, bulletins, planTypes };
+    setProjects(restoredProjects);
     setDailyLogs(backup.dailyLogs);
     setBulletins(backup.bulletins);
     setPlanTypes(restoredPlanTypes);
     setSelectedProjectId('all');
+    const replaceTable = async <T extends { id: string },>(
+      table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+      previousRows: T[],
+      nextRows: T[]
+    ) => {
+      await Promise.all(
+        previousRows
+          .filter((row) => !nextRows.some((nextRow) => nextRow.id === row.id))
+          .map((row) => persistDelete(table, row.id))
+      );
+      await persistRows(table, nextRows);
+    };
+    try {
+      await Promise.all([
+        replaceTable('projects', previousData.projects, restoredProjects),
+        replaceTable('dailyLogs', previousData.dailyLogs, backup.dailyLogs),
+        replaceTable('bulletins', previousData.bulletins, backup.bulletins),
+        replaceTable('planTypes', previousData.planTypes, restoredPlanTypes),
+      ]);
+    } catch (error) {
+      setDataReload((current) => current + 1);
+      throw error;
+    }
     return {
-      projects: backup.projects.length,
+      projects: restoredProjects.length,
       dailyLogs: backup.dailyLogs.length,
       bulletins: backup.bulletins.length,
       planTypes: restoredPlanTypes.length,
@@ -816,41 +695,83 @@ export default function App() {
   // Bulletin Handlers
   const handleAddBulletin = async (newB: SiteBulletin): Promise<boolean> => {
     if (!(await confirmChange(`thêm thông báo “${newB.title}”`))) return false;
+    const previous = bulletins;
     setBulletins((prev) => [newB, ...prev]);
+    try {
+      await persistRow('bulletins', newB);
+    } catch (error) {
+      setBulletins(previous);
+      throw error;
+    }
     return true;
   };
 
   const handleUpdateBulletin = async (updB: SiteBulletin): Promise<boolean> => {
     if (!(await confirmChange(`cập nhật thông báo “${updB.title}”`))) return false;
+    const previous = bulletins;
     setBulletins((prev) => prev.map((b) => (b.id === updB.id ? updB : b)));
+    try {
+      await persistRow('bulletins', updB);
+    } catch (error) {
+      setBulletins(previous);
+      throw error;
+    }
     return true;
   };
 
   const handleDeleteBulletin = async (id: string) => {
     const bulletin = bulletins.find((item) => item.id === id);
     if (!bulletin || !(await confirmChange(`xóa thông báo “${bulletin.title}”`))) return;
+    const previous = bulletins;
     setBulletins((prev) => prev.filter((b) => b.id !== id));
+    try {
+      await persistDelete('bulletins', id);
+    } catch (error) {
+      setBulletins(previous);
+      throw error;
+    }
   };
 
   // Project Handlers
   const handleAddProject = async (newProject: UndergroundProject): Promise<boolean> => {
     if (!(await confirmChange(`thêm dự án “${newProject.name}”`))) return false;
+    const previous = projects;
     setProjects((prev) => [newProject, ...prev]);
+    try {
+      await persistRow('projects', newProject);
+    } catch (error) {
+      setProjects(previous);
+      throw error;
+    }
     return true;
   };
 
   const handleUpdateProject = async (updatedProject: UndergroundProject): Promise<boolean> => {
     if (!(await confirmChange(`cập nhật dự án “${updatedProject.name}”`))) return false;
+    const previous = projects;
     setProjects((prev) =>
       prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))
     );
+    try {
+      await persistRow('projects', updatedProject);
+    } catch (error) {
+      setProjects(previous);
+      throw error;
+    }
     return true;
   };
 
   const handleDeleteProject = async (projectId: string) => {
     const project = projects.find((item) => item.id === projectId);
     if (!project || !(await confirmChange(`xóa dự án “${project.name}”`))) return;
+    const previous = projects;
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    try {
+      await persistDelete('projects', projectId);
+    } catch (error) {
+      setProjects(previous);
+      throw error;
+    }
     if (selectedProjectId === projectId) {
       setSelectedProjectId('all');
     }
@@ -865,7 +786,7 @@ export default function App() {
       : 'content'
   }`;
 
-  if (isAppsScript && !isDataLoaded && !dataLoadError) {
+  if (usesRemoteDatabase && !isDataLoaded && !dataLoadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600">
         Đang tải dữ liệu từ Google Sheets...
@@ -897,7 +818,7 @@ export default function App() {
         activeProjectName={activeProject?.name}
         totalProjects={projects.length}
         isAdmin={isAdmin}
-        requiresLogin={isAppsScript}
+        requiresLogin={usesRemoteDatabase}
         isMobileOpen={isMobileOpen}
         setIsMobileOpen={setIsMobileOpen}
         onOpenQuickEntry={() => handleOpenSupervisorForm(today)}
@@ -944,10 +865,10 @@ export default function App() {
               {dataSaveError && (
                 <button
                   type="button"
-                  onClick={() => setSaveRetry((current) => current + 1)}
+                  onClick={() => setDataReload((current) => current + 1)}
                   className="rounded-lg border border-red-300 px-3 py-1.5 font-semibold hover:bg-red-100"
                 >
-                  Thử lưu lại
+                  Tải lại dữ liệu
                 </button>
               )}
             </div>
@@ -1127,7 +1048,7 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           isAuthenticated={isAdmin}
           onLogin={async (password) => {
-            if (isAppsScript) {
+            if (usesRemoteDatabase) {
               const { token } = await verifyEditPassword(password);
               localStorage.setItem('qlda-edit-session', token);
               setIsDataLoaded(false);

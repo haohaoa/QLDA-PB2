@@ -4,7 +4,6 @@ const DATA_SHEETS = Object.freeze({
   bulletins: 'Bulletins',
   planTypes: 'PlanTypes',
 });
-const DATA_HEADERS = ['record_id', 'data_json', 'updated_at'];
 const MAX_CELL_LENGTH = 49000;
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 const EDIT_SESSION_TTL_SECONDS = 21600;
@@ -27,82 +26,81 @@ function searchPlaces(query) {
   if (cachedResults) return JSON.parse(cachedResults);
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  lock.waitLock(5000);
+  let properties;
+  let waitMilliseconds = 0;
   try {
     const cachedAfterLock = cache.get(cacheKey);
     if (cachedAfterLock) return JSON.parse(cachedAfterLock);
 
-    const properties = PropertiesService.getScriptProperties();
-    const lastRequestAt = Number(properties.getProperty('PLACE_SEARCH_LAST_REQUEST_AT') || 0);
-    const waitMilliseconds = 1000 - (Date.now() - lastRequestAt);
-    if (waitMilliseconds > 0) Utilities.sleep(waitMilliseconds);
-
-    const url = 'https://nominatim.openstreetmap.org/search?' + [
-      'format=jsonv2',
-      'countrycodes=vn',
-      'limit=5',
-      'addressdetails=1',
-      'q=' + encodeURIComponent(normalizedQuery),
-    ].join('&');
-    let response;
-    try {
-      response = UrlFetchApp.fetch(url, {
-        method: 'get',
-        headers: {
-          'Accept-Language': 'vi',
-          'User-Agent': 'QLDA-Google-Apps-Script/1.0 (Vietnam project route search)',
-        },
-        muteHttpExceptions: true,
-      });
-    } finally {
-      properties.setProperty('PLACE_SEARCH_LAST_REQUEST_AT', String(Date.now()));
-    }
-
-    const statusCode = response.getResponseCode();
-    if (statusCode < 200 || statusCode >= 300) {
-      throw new Error('Dịch vụ tìm địa điểm đang lỗi (HTTP ' + statusCode + '). Hãy thử lại sau.');
-    }
-
-    let results;
-    try {
-      results = JSON.parse(response.getContentText());
-    } catch (error) {
-      throw new Error('Dịch vụ tìm địa điểm trả về dữ liệu không đọc được.');
-    }
-    if (!Array.isArray(results)) {
-      throw new Error('Dịch vụ tìm địa điểm trả về dữ liệu không hợp lệ.');
-    }
-
-    const validResults = results.filter(function (result) {
-      const latitude = Number(result && result.lat);
-      const longitude = Number(result && result.lon);
-      return result &&
-        typeof result.place_id === 'number' &&
-        typeof result.display_name === 'string' &&
-        isFinite(latitude) &&
-        latitude >= -90 &&
-        latitude <= 90 &&
-        isFinite(longitude) &&
-        longitude >= -180 &&
-        longitude <= 180;
-    }).map(function (result) {
-      return {
-        place_id: result.place_id,
-        display_name: result.display_name,
-        lat: String(result.lat),
-        lon: String(result.lon),
-      };
-    });
-
-    cache.put(
-      cacheKey,
-      JSON.stringify(validResults),
-      PLACE_SEARCH_CACHE_TTL_SECONDS
-    );
-    return validResults;
+    properties = PropertiesService.getScriptProperties();
+    const now = Date.now();
+    const previousSlot = Number(properties.getProperty('PLACE_SEARCH_LAST_REQUEST_AT') || 0);
+    const requestSlot = Math.max(now, previousSlot + 1000);
+    waitMilliseconds = requestSlot - now;
+    properties.setProperty('PLACE_SEARCH_LAST_REQUEST_AT', String(requestSlot));
   } finally {
     lock.releaseLock();
   }
+
+  if (waitMilliseconds > 0) Utilities.sleep(waitMilliseconds);
+  const url = 'https://nominatim.openstreetmap.org/search?' + [
+    'format=jsonv2',
+    'countrycodes=vn',
+    'limit=5',
+    'addressdetails=1',
+    'q=' + encodeURIComponent(normalizedQuery),
+  ].join('&');
+  const response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      'Accept-Language': 'vi',
+      'User-Agent': 'QLDA-Google-Apps-Script/1.0 (Vietnam project route search)',
+    },
+    muteHttpExceptions: true,
+  });
+  const statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Dịch vụ tìm địa điểm đang lỗi (HTTP ' + statusCode + '). Hãy thử lại sau.');
+  }
+
+  let results;
+  try {
+    results = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('Dịch vụ tìm địa điểm trả về dữ liệu không đọc được.');
+  }
+  if (!Array.isArray(results)) {
+    throw new Error('Dịch vụ tìm địa điểm trả về dữ liệu không hợp lệ.');
+  }
+
+  const validResults = results.filter(function (result) {
+    const latitude = Number(result && result.lat);
+    const longitude = Number(result && result.lon);
+    return result &&
+      typeof result.place_id === 'number' &&
+      typeof result.display_name === 'string' &&
+      isFinite(latitude) &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      isFinite(longitude) &&
+      longitude >= -180 &&
+      longitude <= 180;
+  }).map(function (result) {
+    return {
+      place_id: result.place_id,
+      display_name: result.display_name,
+      lat: String(result.lat),
+      lon: String(result.lon),
+    };
+  });
+
+  cache.put(
+    cacheKey,
+    JSON.stringify(validResults),
+    PLACE_SEARCH_CACHE_TTL_SECONDS
+  );
+  return validResults;
 }
 
 function authorizePlaceSearch() {
@@ -112,6 +110,12 @@ function authorizePlaceSearch() {
 function doGet(e) {
   const parameters = e && e.parameter ? e.parameter : {};
   const action = parameters.action || parameters.api;
+  if (action === 'getDatabase') {
+    return getDatabaseResponse_();
+  }
+  if (action === 'getAll' || action === 'getById') {
+    return getTableResponse_(action, parameters);
+  }
   if (action === 'getData' || action === 'getProjects') {
     return getPublicApiResponse_(action);
   }
@@ -139,17 +143,517 @@ function doPost(e) {
     return createJsonResponse_({ success: false, error: 'JSON body không hợp lệ.' });
   }
   const action = request.action || 'getData';
-  if (action !== 'getData' && action !== 'getProjects') {
-    return createJsonResponse_({ success: false, error: 'Action không được hỗ trợ.' });
+  if (action === 'getData' || action === 'getProjects') {
+    return getPublicApiResponse_(action);
   }
-
-  return getPublicApiResponse_(action);
+  if (action === 'validateSession') {
+    return createJsonResponse_({
+      success: true,
+      data: { canWrite: isEditSessionValid_(request.sessionToken) },
+    });
+  }
+  if (action === 'migrateInlineImages') {
+    try {
+      assertEditSession_(request.sessionToken);
+      return createJsonResponse_({
+        success: true,
+        data: migrateInlineImagesInDatabase_(request.sessionToken),
+      });
+    } catch (error) {
+      return createJsonResponse_({
+        success: false,
+        error: error && error.message ? error.message : 'Không thể chuyển ảnh cũ lên Google Drive.',
+      });
+    }
+  }
+  if (action === 'verifyEditPassword') {
+    try {
+      return createJsonResponse_({ success: true, data: verifyEditPassword(request.password) });
+    } catch (error) {
+      return createJsonResponse_({
+        success: false,
+        error: error && error.message ? error.message : 'Không thể đăng nhập Admin.',
+      });
+    }
+  }
+  if (action === 'uploadViolationImage' || action === 'deleteViolationImage') {
+    try {
+      assertEditSession_(request.sessionToken);
+      const result = action === 'uploadViolationImage'
+        ? uploadViolationImage(request.base64Data, request.fileName, request.mimeType, request.sessionToken)
+        : deleteViolationImage(request.fileId, request.sessionToken);
+      return createJsonResponse_({ success: true, data: result });
+    } catch (error) {
+      return createJsonResponse_({
+        success: false,
+        error: error && error.message ? error.message : 'Không thể xử lý ảnh trên Google Drive.',
+      });
+    }
+  }
+  try {
+    const data = handleDatabaseWrite_(request);
+    if (request.table === DATA_SHEETS.dailyLogs && request.action !== 'syncDatabase') {
+      cleanupPendingViolationImages_();
+    }
+    return createJsonResponse_({ success: true, data: data });
+  } catch (error) {
+    return createJsonResponse_({
+      success: false,
+      error: error && error.message ? error.message : 'Không thể cập nhật cơ sở dữ liệu.',
+    });
+  }
 }
 
-function getPublicApiResponse_(action) {
+function runDatabaseApiAction(request) {
+  try {
+    if (!request || typeof request !== 'object' || Array.isArray(request)) {
+      throw new Error('Yêu cầu API không hợp lệ.');
+    }
+    const action = request.action;
+    if (action === 'validateSession') {
+      return {
+        success: true,
+        data: { canWrite: isEditSessionValid_(request.sessionToken) },
+      };
+    }
+    if (action === 'migrateInlineImages') {
+      return {
+        success: true,
+        data: migrateInlineImagesInDatabase_(request.sessionToken),
+      };
+    }
+    if (action === 'getDatabase') {
+      const spreadsheet = getSpreadsheet_();
+      const data = {};
+      Object.keys(DATA_SHEETS).forEach(function (table) {
+        data[DATA_SHEETS[table]] = readCollection_(spreadsheet, DATA_SHEETS[table]);
+      });
+      data.isInitialized =
+        PropertiesService.getScriptProperties().getProperty('DATA_INITIALIZED') === 'true';
+      return { success: true, data: data };
+    }
+    if (action === 'getAll' || action === 'getById') {
+      const sheetName = resolveTableName_(request.table);
+      const rows = readCollection_(getSpreadsheet_(), sheetName);
+      if (action === 'getAll') return { success: true, data: rows };
+      const record = rows.find(function (item) {
+        return item.id === String(request.id || '');
+      });
+      return { success: true, data: record || null };
+    }
+    const data = handleDatabaseWrite_(request);
+    if (request.table === DATA_SHEETS.dailyLogs && action !== 'syncDatabase') {
+      cleanupPendingViolationImages_();
+    }
+    return { success: true, data: data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error && error.message ? error.message : 'Không thể xử lý yêu cầu API.',
+    };
+  }
+}
+
+function getDatabaseResponse_() {
+  try {
+    const spreadsheet = getSpreadsheet_();
+    const data = {};
+    Object.keys(DATA_SHEETS).forEach(function (table) {
+      data[DATA_SHEETS[table]] = readCollection_(spreadsheet, DATA_SHEETS[table]);
+    });
+    const properties = PropertiesService.getScriptProperties();
+    return createJsonResponse_({
+      success: true,
+      data: Object.assign({}, data, {
+        isInitialized: properties.getProperty('DATA_INITIALIZED') === 'true',
+      }),
+    });
+  } catch (error) {
+    return createJsonResponse_({
+      success: false,
+      error: error && error.message ? error.message : 'Không thể đọc cơ sở dữ liệu.',
+    });
+  }
+}
+
+function getTableResponse_(action, parameters) {
+  try {
+    const sheetName = resolveTableName_(parameters.table);
+    const spreadsheet = getSpreadsheet_();
+    const records = readCollection_(spreadsheet, sheetName);
+    if (action === 'getAll') {
+      return createJsonResponse_({ success: true, data: records });
+    }
+    const record = records.find(function (item) {
+      return item.id === String(parameters.id || '');
+    });
+    return createJsonResponse_({ success: true, data: record || null });
+  } catch (error) {
+    return createJsonResponse_({
+      success: false,
+      error: error && error.message ? error.message : 'Không thể đọc bảng dữ liệu.',
+    });
+  }
+}
+
+function migrateInlineImagesInDatabase_(sessionToken) {
+  assertEditSession_(sessionToken);
+  const spreadsheet = getSpreadsheet_();
+  const originalLogs = readCollection_(spreadsheet, DATA_SHEETS.dailyLogs);
+  const migratedLogs = migrateInlineDailyLogImages_(originalLogs);
+  const pendingWrites = [];
+  migratedLogs.forEach(function (record, index) {
+    if (JSON.stringify(record) !== JSON.stringify(originalLogs[index])) {
+      pendingWrites.push({
+        record: record,
+        original: originalLogs[index],
+        rowNumber: index + 2,
+      });
+    }
+  });
+  if (!pendingWrites.length) return { migrated: 0 };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let migrated = 0;
+  const skippedOriginals = [];
+  const skippedMigrations = [];
+  try {
+    const currentLogs = readCollection_(spreadsheet, DATA_SHEETS.dailyLogs);
+    const currentById = Object.create(null);
+    currentLogs.forEach(function (record, index) {
+      currentById[record.id] = { record: record, rowNumber: index + 2 };
+    });
+    pendingWrites.forEach(function (entry) {
+      const current = currentById[entry.original.id];
+      if (!current || JSON.stringify(current.record) !== JSON.stringify(entry.original)) {
+        skippedOriginals.push(entry.original);
+        skippedMigrations.push(entry.record);
+        return;
+      }
+      writeRecord_(spreadsheet, DATA_SHEETS.dailyLogs, entry.record, current.rowNumber);
+      migrated += 1;
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  if (skippedMigrations.length) {
+    enqueueOrphanedImages_(skippedMigrations, skippedOriginals);
+    cleanupPendingViolationImages_();
+  }
+  return { migrated: migrated };
+}
+
+function handleDatabaseWrite_(request) {
+  assertEditSession_(request.sessionToken);
+  const action = request.action;
+  if (action === 'syncDatabase') return syncDatabase_(request.data);
+  if (action !== 'insert' && action !== 'update' && action !== 'upsert' &&
+      action !== 'delete' && action !== 'batchUpsert') {
+    throw new Error('Action không được hỗ trợ.');
+  }
+
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    const spreadsheet = getSpreadsheet_();
+    const sheetName = resolveTableName_(request.table);
+    if (action === 'delete') {
+      const id = requireRecordId_(request.id);
+      const deleted = deleteRecord_(spreadsheet, sheetName, id);
+      markDatabaseInitialized_();
+      return { id: id, deleted: deleted };
+    }
+    if (action === 'batchUpsert') {
+      if (!Array.isArray(request.data)) throw new Error('Dữ liệu batchUpsert phải là một mảng.');
+      const batchIds = {};
+      request.data.forEach(function (record) {
+        validateRecord_(record);
+        if (batchIds[record.id]) throw new Error('ID bản ghi bị trùng trong batchUpsert: ' + record.id);
+        batchIds[record.id] = true;
+      });
+      const results = batchUpsertRecords_(spreadsheet, sheetName, request.data);
+      markDatabaseInitialized_();
+      return results;
+    }
+
+    const record = request.data;
+    validateRecord_(record);
+    if (request.id && String(request.id) !== record.id) {
+      throw new Error('ID yêu cầu không khớp với ID trong dữ liệu.');
+    }
+    const result = upsertRecord_(spreadsheet, sheetName, record, action);
+    markDatabaseInitialized_();
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function syncDatabase_(data) {
+  if (!data || !Array.isArray(data.dailyLogs)) {
+    throw new Error('Dữ liệu JSON cũ không có danh sách nhật ký hợp lệ.');
+  }
+  const spreadsheet = getSpreadsheet_();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    assertDatabaseIsEmpty_(spreadsheet);
+  } finally {
+    lock.releaseLock();
+  }
+
+  const migratedData = Object.assign({}, data, {
+    dailyLogs: migrateInlineDailyLogImages_(data.dailyLogs),
+  });
+  validateSnapshot_(migratedData);
+
+  lock.waitLock(30000);
+  try {
+    assertDatabaseIsEmpty_(spreadsheet);
+    Object.keys(DATA_SHEETS).forEach(function (table) {
+      writeCollection_(spreadsheet, DATA_SHEETS[table], migratedData[table]);
+    });
+    PropertiesService.getScriptProperties().setProperty('DATA_INITIALIZED', 'true');
+    return { migrated: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function assertDatabaseIsEmpty_(spreadsheet) {
+  Object.keys(DATA_SHEETS).forEach(function (table) {
+    if (readCollection_(spreadsheet, DATA_SHEETS[table]).length) {
+      throw new Error('Chỉ được đồng bộ dữ liệu cũ khi tất cả bảng trên Sheet đang trống.');
+    }
+  });
+}
+
+function markDatabaseInitialized_() {
+  PropertiesService.getScriptProperties().setProperty('DATA_INITIALIZED', 'true');
+}
+
+function resolveTableName_(table) {
+  const allowed = Object.keys(DATA_SHEETS).map(function (key) {
+    return DATA_SHEETS[key];
+  });
+  if (allowed.indexOf(table) === -1) throw new Error('Tên bảng không hợp lệ.');
+  return table;
+}
+
+function requireRecordId_(id) {
+  if (typeof id !== 'string' || !id.trim()) throw new Error('ID bản ghi không hợp lệ.');
+  return id;
+}
+
+function validateRecord_(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    throw new Error('Dữ liệu bản ghi không hợp lệ.');
+  }
+  requireRecordId_(record.id);
+  if (JSON.stringify(record).length > MAX_CELL_LENGTH * 10) {
+    throw new Error('Bản ghi vượt giới hạn kích thước cho phép.');
+  }
+  if (
+    record.photoUrls !== undefined &&
+    !Array.isArray(record.photoUrls)
+  ) {
+    throw new Error('Danh sách ảnh của bản ghi không hợp lệ.');
+  }
+  if (
+    (typeof record.photoUrl === 'string' && record.photoUrl.startsWith('data:')) ||
+    (Array.isArray(record.photoUrls) && record.photoUrls.some(function (url) {
+      return typeof url === 'string' && url.startsWith('data:');
+    })) ||
+    (record.violationReport && (
+      (typeof record.violationReport.photoUrl === 'string' &&
+        record.violationReport.photoUrl.startsWith('data:')) ||
+      (Array.isArray(record.violationReport.photoUrls) &&
+        record.violationReport.photoUrls.some(function (url) {
+          return typeof url === 'string' && url.startsWith('data:');
+        }))
+    ))
+  ) {
+    throw new Error('Ảnh chưa được tải lên Google Drive. Hãy tải ảnh lên Drive trước khi lưu.');
+  }
+}
+
+function upsertRecord_(spreadsheet, sheetName, record, action) {
+  const existing = findRecordRow_(spreadsheet, sheetName, record.id);
+  if (action === 'insert' && existing) throw new Error('ID bản ghi đã tồn tại: ' + record.id);
+  if (action === 'update' && !existing) throw new Error('Không tìm thấy bản ghi cần cập nhật: ' + record.id);
+  const nextRecord = existing && (action === 'update' || action === 'upsert')
+    ? Object.assign({}, existing.record, record)
+    : record;
+  writeRecord_(spreadsheet, sheetName, nextRecord, existing ? existing.row : null);
+  if (sheetName === DATA_SHEETS.dailyLogs && existing) {
+    enqueueOrphanedImages_([existing.record], [nextRecord]);
+  }
+  return nextRecord;
+}
+
+function deleteRecord_(spreadsheet, sheetName, id) {
+  const existing = findRecordRow_(spreadsheet, sheetName, id);
+  if (!existing) return false;
+  spreadsheet.getSheetByName(sheetName).deleteRow(existing.row);
+  if (sheetName === DATA_SHEETS.dailyLogs) {
+    enqueueOrphanedImages_([existing.record], []);
+  }
+  return true;
+}
+
+function batchUpsertRecords_(spreadsheet, sheetName, records) {
+  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const missingHeaders = [];
+  records.forEach(function (record) {
+    Object.keys(record).forEach(function (key) {
+      if (headers.indexOf(key) === -1 && missingHeaders.indexOf(key) === -1) {
+        missingHeaders.push(key);
+      }
+    });
+  });
+  if (missingHeaders.length) {
+    sheet.getRange(1, headers.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    headers.push.apply(headers, missingHeaders);
+  }
+
+  const lastRow = sheet.getLastRow();
+  const existingRows = lastRow < 2
+    ? []
+    : sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const existingById = Object.create(null);
+  existingRows.forEach(function (row, index) {
+    const existing = rowToRecord_(headers, row);
+    if (!existing.id) {
+      throw new Error('Dòng ' + (index + 2) + ' trong sheet ' + sheetName + ' bị thiếu ID.');
+    }
+    if (existingById[existing.id]) {
+      throw new Error('Mã bản ghi bị trùng trong ' + sheetName + ': ' + existing.id);
+    }
+    existingById[existing.id] = { rowNumber: index + 2, record: existing };
+  });
+
+  const results = [];
+  const updates = [];
+  const inserts = [];
+  const previousDailyLogs = [];
+  const nextDailyLogs = [];
+  records.forEach(function (record) {
+    const existing = existingById[record.id];
+    const nextRecord = existing
+      ? Object.assign({}, existing.record, record)
+      : record;
+    const row = recordToSheetRow_(headers, nextRecord);
+    results.push(nextRecord);
+    if (existing) {
+      updates.push({ rowNumber: existing.rowNumber, row: row });
+      if (sheetName === DATA_SHEETS.dailyLogs) {
+        previousDailyLogs.push(existing.record);
+        nextDailyLogs.push(nextRecord);
+      }
+    } else {
+      inserts.push(row);
+    }
+  });
+
+  updates.sort(function (left, right) {
+    return left.rowNumber - right.rowNumber;
+  });
+  let updateIndex = 0;
+  while (updateIndex < updates.length) {
+    let endIndex = updateIndex + 1;
+    while (
+      endIndex < updates.length &&
+      updates[endIndex].rowNumber === updates[endIndex - 1].rowNumber + 1
+    ) {
+      endIndex += 1;
+    }
+    const group = updates.slice(updateIndex, endIndex);
+    sheet.getRange(group[0].rowNumber, 1, group.length, headers.length).setValues(
+      group.map(function (entry) {
+        return entry.row;
+      })
+    );
+    updateIndex = endIndex;
+  }
+  if (inserts.length) {
+    sheet.getRange(lastRow + 1, 1, inserts.length, headers.length).setValues(inserts);
+  }
+  if (previousDailyLogs.length) {
+    enqueueOrphanedImages_(previousDailyLogs, nextDailyLogs);
+  }
+  sheet.setFrozenRows(1);
+  return results;
+}
+
+function findRecordRow_(spreadsheet, sheetName, id) {
+  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idColumn = headers.indexOf('id');
+  if (idColumn === -1 || sheet.getLastRow() < 2) return null;
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  for (let index = 0; index < values.length; index += 1) {
+    if (String(values[index][idColumn] || '') === id) {
+      return { row: index + 2, record: rowToRecord_(headers, values[index]) };
+    }
+  }
+  return null;
+}
+
+function writeRecord_(spreadsheet, sheetName, record, rowNumber) {
+  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const missingHeaders = Object.keys(record).filter(function (key) {
+    return headers.indexOf(key) === -1;
+  });
+  if (missingHeaders.length) {
+    sheet.getRange(1, headers.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    headers.push.apply(headers, missingHeaders);
+  }
+  const row = recordToSheetRow_(headers, record);
+  if (rowNumber) {
+    sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+  sheet.setFrozenRows(1);
+}
+
+function recordToSheetRow_(headers, record) {
+  return headers.map(function (header) {
+    if (!(header in record) || record[header] === undefined) return '';
+    const value = header === 'id' ? record[header] : JSON.stringify(record[header]);
+    if (String(value).length > MAX_CELL_LENGTH) {
+      throw new Error('Trường "' + header + '" của bản ghi "' + record.id + '" vượt giới hạn ký tự của Google Sheets.');
+    }
+    return value;
+  });
+}
+
+function rowToRecord_(headers, row) {
+  const record = {};
+  headers.forEach(function (header, index) {
+    if (!header || row[index] === '') return;
+    if (header === 'id') {
+      record.id = String(row[index]);
+      return;
+    }
+    const value = row[index];
+    if (typeof value !== 'string') {
+      record[header] = value;
+      return;
+    }
+    try {
+      record[header] = JSON.parse(value);
+    } catch (error) {
+      record[header] = value;
+    }
+  });
+  return record;
+}
+
+function getPublicApiResponse_(action) {
     const spreadsheet = getSpreadsheet_();
     const projects = readCollection_(spreadsheet, DATA_SHEETS.projects);
     const dailyLogs = readCollection_(spreadsheet, DATA_SHEETS.dailyLogs);
@@ -228,9 +732,6 @@ function getPublicApiResponse_(action) {
     }
 
     return createJsonResponse_(response);
-  } finally {
-    lock.releaseLock();
-  }
 }
 
 function getViolationPhotoUrls_(violationReport) {
@@ -270,9 +771,12 @@ function createJsonResponse_(data) {
 function setupSpreadsheet() {
   const properties = PropertiesService.getScriptProperties();
   const existingId = properties.getProperty('SPREADSHEET_ID');
-  const spreadsheet = existingId
-    ? SpreadsheetApp.openById(existingId)
-    : SpreadsheetApp.create('QLDA - Quản lý dự án');
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = activeSpreadsheet || (
+    existingId
+      ? SpreadsheetApp.openById(existingId)
+      : SpreadsheetApp.create('QLDA - Quản lý dự án')
+  );
 
   properties.setProperty('SPREADSHEET_ID', spreadsheet.getId());
   Object.keys(DATA_SHEETS).forEach(function (collection) {
@@ -309,30 +813,28 @@ function verifyEditPassword(password) {
   return { token: token };
 }
 
-function getAppData(sessionToken) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const spreadsheet = getSpreadsheet_();
-    const properties = PropertiesService.getScriptProperties();
-    const canWrite = isEditSessionValid_(sessionToken);
-    let dailyLogs = readCollection_(spreadsheet, DATA_SHEETS.dailyLogs);
-    if (canWrite) {
-      dailyLogs = migrateInlineDailyLogImages_(dailyLogs);
-    }
+function getApiUrl() {
+  const url = ScriptApp.getService().getUrl();
+  if (!url) throw new Error('Hãy triển khai ứng dụng dưới dạng Web app trước khi kết nối API.');
+  return url;
+}
 
-    return {
-      projects: readCollection_(spreadsheet, DATA_SHEETS.projects),
-      dailyLogs: dailyLogs,
-      bulletins: readCollection_(spreadsheet, DATA_SHEETS.bulletins),
-      planTypes: readCollection_(spreadsheet, DATA_SHEETS.planTypes),
-      isInitialized: properties.getProperty('DATA_INITIALIZED') === 'true',
-      canWrite: canWrite,
-      revision: getDataRevision_(properties),
-    };
-  } finally {
-    lock.releaseLock();
-  }
+function getAppData(sessionToken) {
+  const spreadsheet = getSpreadsheet_();
+  const properties = PropertiesService.getScriptProperties();
+  const canWrite = isEditSessionValid_(sessionToken);
+  let dailyLogs = readCollection_(spreadsheet, DATA_SHEETS.dailyLogs);
+  if (canWrite) dailyLogs = migrateInlineDailyLogImages_(dailyLogs);
+
+  return {
+    projects: readCollection_(spreadsheet, DATA_SHEETS.projects),
+    dailyLogs: dailyLogs,
+    bulletins: readCollection_(spreadsheet, DATA_SHEETS.bulletins),
+    planTypes: readCollection_(spreadsheet, DATA_SHEETS.planTypes),
+    isInitialized: properties.getProperty('DATA_INITIALIZED') === 'true',
+    canWrite: canWrite,
+    revision: getDataRevision_(properties),
+  };
 }
 
 function uploadViolationImage(base64Data, fileName, mimeType, sessionToken) {
@@ -372,6 +874,7 @@ function saveAppData(data, sessionToken, expectedRevision) {
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
+  let result;
   try {
     const properties = PropertiesService.getScriptProperties();
     const currentRevision = getDataRevision_(properties);
@@ -393,11 +896,12 @@ function saveAppData(data, sessionToken, expectedRevision) {
       DATA_REVISION: String(nextRevision),
     });
     enqueueOrphanedImages_(previousDailyLogs, data.dailyLogs);
-    cleanupPendingViolationImages_();
-    return { revision: nextRevision };
+    result = { revision: nextRevision };
   } finally {
     lock.releaseLock();
   }
+  cleanupPendingViolationImages_();
+  return result;
 }
 
 function getDataRevision_(properties) {
@@ -591,40 +1095,105 @@ function migrateInlineDailyLogImages_(dailyLogs) {
 function getOrCreateSheet_(spreadsheet, sheetName) {
   const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, DATA_HEADERS.length).setValues([DATA_HEADERS]);
+    sheet.getRange(1, 1).setValue('id');
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn === 0) {
+    if (sheet.getLastRow() > 1) {
+      throw new Error('Sheet ' + sheetName + ' có dữ liệu nhưng không có hàng tiêu đề.');
+    }
+    sheet.getRange(1, 1).setValue('id');
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function (value) {
+    return String(value || '').trim();
+  });
+  const recordIdColumn = headers.indexOf('record_id');
+  const dataJsonColumn = headers.indexOf('data_json');
+  if (dataJsonColumn !== -1 && recordIdColumn !== -1) {
+    migrateLegacyCollectionSheet_(sheet, sheetName, headers);
+  } else if (headers.indexOf('id') === -1 && recordIdColumn !== -1) {
+    sheet.getRange(1, recordIdColumn + 1).setValue('id');
+  } else if (headers.indexOf('id') === -1) {
+    throw new Error('Sheet ' + sheetName + ' không có cột id hợp lệ.');
   }
   return sheet;
+}
+
+function migrateLegacyCollectionSheet_(sheet, sheetName, legacyHeaders) {
+  const lastRow = sheet.getLastRow();
+  const recordIdColumn = legacyHeaders.indexOf('record_id');
+  const dataJsonColumn = legacyHeaders.indexOf('data_json');
+  const legacyRows = lastRow < 2
+    ? []
+    : sheet.getRange(2, 1, lastRow - 1, legacyHeaders.length).getValues();
+  const records = legacyRows.filter(function (row) {
+    return row[recordIdColumn] || row[dataJsonColumn];
+  }).map(function (row, index) {
+    let record;
+    try {
+      record = JSON.parse(String(row[dataJsonColumn] || ''));
+    } catch (error) {
+      throw new Error('JSON không hợp lệ tại sheet ' + sheetName + ', dòng ' + (index + 2) + '.');
+    }
+    if (!record || record.id !== String(row[recordIdColumn] || '')) {
+      throw new Error('Mã bản ghi không khớp tại sheet ' + sheetName + ', dòng ' + (index + 2) + '.');
+    }
+    return record;
+  });
+  const headers = ['id'];
+  records.forEach(function (record) {
+    Object.keys(record).forEach(function (key) {
+      if (headers.indexOf(key) === -1) headers.push(key);
+    });
+  });
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  const rows = records.map(function (record) {
+    return headers.map(function (header) {
+      if (!(header in record)) return '';
+      const value = header === 'id' ? record[header] : JSON.stringify(record[header]);
+      if (String(value).length > MAX_CELL_LENGTH) {
+        throw new Error('Trường "' + header + '" của bản ghi "' + record.id + '" vượt giới hạn ký tự của Google Sheets.');
+      }
+      return value;
+    });
+  });
+  if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  sheet.setFrozenRows(1);
 }
 
 function readCollection_(spreadsheet, sheetName) {
   const sheet = getOrCreateSheet_(spreadsheet, sheetName);
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-
-  return sheet.getRange(2, 1, lastRow - 1, DATA_HEADERS.length).getValues().map(function (row, index) {
-    const recordId = String(row[0] || '');
-    const serialized = String(row[1] || '');
-    if (!recordId || !serialized) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const records = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
+    .map(function (row, index) {
+    const record = rowToRecord_(headers, row);
+    if (!record.id) {
       throw new Error('Dòng ' + (index + 2) + ' trong sheet ' + sheetName + ' bị thiếu dữ liệu.');
-    }
-
-    let record;
-    try {
-      record = JSON.parse(serialized);
-    } catch (error) {
-      throw new Error('JSON không hợp lệ tại sheet ' + sheetName + ', dòng ' + (index + 2) + '.');
-    }
-    if (!record || record.id !== recordId) {
-      throw new Error('Mã bản ghi không khớp tại sheet ' + sheetName + ', dòng ' + (index + 2) + '.');
     }
     return record;
   });
+  const ids = {};
+  records.forEach(function (record) {
+    if (ids[record.id]) throw new Error('Mã bản ghi bị trùng trong ' + sheetName + ': ' + record.id);
+    ids[record.id] = true;
+  });
+  return records;
 }
 
 function writeCollection_(spreadsheet, sheetName, records) {
   const sheet = getOrCreateSheet_(spreadsheet, sheetName);
   const seenIds = {};
-  const rows = records.map(function (record) {
+  const headers = ['id'];
+  records.forEach(function (record) {
     if (!record || typeof record.id !== 'string' || !record.id.trim()) {
       throw new Error('Mỗi bản ghi trong ' + sheetName + ' phải có id hợp lệ.');
     }
@@ -648,22 +1217,27 @@ function writeCollection_(spreadsheet, sheetName, records) {
       throw new Error('Mã bản ghi bị trùng trong ' + sheetName + ': ' + record.id);
     }
     seenIds[record.id] = true;
-    const serialized = JSON.stringify(record);
-    if (serialized.length > MAX_CELL_LENGTH) {
+    if (JSON.stringify(record).length > MAX_CELL_LENGTH * 10) {
       throw new Error(
         'Bản ghi "' + record.id + '" vượt giới hạn ký tự của Google Sheets. ' +
         'Hãy giảm kích thước thông tin của bản ghi.'
       );
     }
-    return [record.id, serialized, new Date()];
+    Object.keys(record).forEach(function (key) {
+      if (headers.indexOf(key) === -1) headers.push(key);
+    });
   });
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, DATA_HEADERS.length).clearContent();
-  }
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  const rows = records.map(function (record) {
+    return headers.map(function (header) {
+      if (!(header in record)) return '';
+      return header === 'id' ? record[header] : JSON.stringify(record[header]);
+    });
+  });
   if (rows.length) {
-    sheet.getRange(2, 1, rows.length, DATA_HEADERS.length).setValues(rows);
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
   sheet.setFrozenRows(1);
 }

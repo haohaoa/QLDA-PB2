@@ -18,16 +18,21 @@ Trang tổng quan và trang báo cáo chỉ hiển thị dự án đang thực h
 
 1. Tạo một Google Apps Script project, bật hiển thị `appsscript.json`, rồi đưa các tệp trong thư mục `QLDA` vào project với đúng tên.
 2. Trong **Project Settings → Script Properties**, thêm `EDIT_PASSWORD` với mật khẩu quản trị mong muốn.
-3. Chạy hàm `setupAll()` trong editor và cấp quyền truy cập Google Sheets, Drive.
-4. Kiểm tra kết quả chạy để lấy liên kết Google Sheets và thư mục Drive `QLDA - Ảnh sai phạm`.
-5. Trong Apps Script, chạy hàm `authorizePlaceSearch()` một lần và cấp quyền gửi yêu cầu ra dịch vụ bên ngoài (`UrlFetchApp`) nếu Google yêu cầu.
-6. Tạo deployment kiểu **Web app**, chạy với tư cách chủ sở hữu (owner), rồi chọn phạm vi truy cập phù hợp với tổ chức.
+3. Nếu Apps Script được mở từ một Google Sheets (container-bound), `setupAll()` sẽ tạo các tab dữ liệu ngay trong spreadsheet đó. Nếu là project độc lập, hàm sẽ mở spreadsheet có `SPREADSHEET_ID` hoặc tạo mới `QLDA - Quản lý dự án`.
+4. Chạy hàm `setupAll()` trong editor và cấp quyền truy cập Google Sheets, Drive; xem `spreadsheetUrl` trong kết quả để xác nhận nơi lưu dữ liệu.
+5. Kiểm tra thư mục Drive `QLDA - Ảnh sai phạm` trong kết quả chạy.
+6. Trong Apps Script, chạy hàm `authorizePlaceSearch()` một lần và cấp quyền gửi yêu cầu ra dịch vụ bên ngoài (`UrlFetchApp`) nếu Google yêu cầu.
+7. Tạo deployment kiểu **Web app**, chạy với tư cách chủ sở hữu (owner), rồi chọn phạm vi truy cập phù hợp với tổ chức.
 
 Ảnh báo cáo thi công và ảnh sai phạm được lưu chung trong thư mục Drive `QLDA - Ảnh sai phạm`; Google Sheets chỉ nhận URL ảnh. Để hiển thị trong ứng dụng/API, ảnh tải lên được chia sẻ ở chế độ **Anyone with the link – Viewer**. Người có liên kết ảnh có thể xem ảnh, vì vậy không tải lên hình ảnh cần giữ riêng tư.
 
-## API công khai
+## API dữ liệu
 
-API đọc dữ liệu công khai, không yêu cầu API key. `GET` tới URL deployment `/exec?action=getData` trả về toàn bộ dự án, nhật ký, thông báo và loại kế hoạch. Mỗi dự án có thêm `imageLinks` tổng hợp ảnh dự án, ảnh nhật ký và ảnh sai phạm; mỗi nhật ký cũng có `imageLinks` chứa link ảnh nhật ký và tất cả ảnh trong biên bản sai phạm. Các bộ dữ liệu dự án/nhật ký vẫn giữ nguyên đầy đủ thông tin đã lưu; ảnh được trả dưới dạng URL công khai để hệ thống gọi API hiển thị, không nhúng binary/base64. `GET` `/exec?action=getProjects` chỉ trả danh sách dự án kèm link ảnh. URL `/exec` không có action API sẽ hiển thị giao diện. Có thể dùng `POST` JSON với `{"action":"getData"}` hoặc `{"action":"getProjects"}` để lấy cùng dữ liệu.
+`GET /exec?action=getDatabase` trả về các bảng `Projects`, `DailyLogs`, `Bulletins` và `PlanTypes`, cùng trạng thái phiên Admin và khởi tạo. Có thể lấy riêng một bảng bằng `GET /exec?action=getAll&table=Projects`, hoặc một dòng bằng `GET /exec?action=getById&table=Projects&id=<id>`. Bảng tính lưu một bản ghi trên mỗi dòng; cột đầu tiên là `id`, các trường khác là cột riêng. Các giá trị lồng nhau (như danh sách nhà thầu, tọa độ hoặc ảnh) được JSON-encode trong cột tương ứng.
+
+Ghi dữ liệu yêu cầu phiên Admin hợp lệ. Frontend gửi `POST /exec` với `Content-Type: text/plain;charset=utf-8`, body JSON và `sessionToken`; các action gồm `upsert`, `insert`, `update`, `delete`, `batchUpsert` và `syncDatabase`. Mỗi thao tác ghi thay đổi các dòng được chỉ định; `syncDatabase` chỉ chấp nhận khi toàn bộ bảng đang trống. Dữ liệu cũ theo định dạng mỗi dòng là JSON được nâng cấp sang các cột riêng khi truy cập lần đầu.
+
+API đọc công khai cũ vẫn được hỗ trợ: `GET /exec?action=getData` trả về dữ liệu dự án, nhật ký, thông báo và loại kế hoạch cùng liên kết ảnh; `GET /exec?action=getProjects` chỉ trả danh sách dự án. URL `/exec` không có action hiển thị giao diện. Ngoài Google Apps Script, cấu hình `VITE_GOOGLE_APPS_SCRIPT_URL` trong `.env` để chỉ định URL Web App.
 
 Ví dụ PowerShell:
 
@@ -43,6 +48,6 @@ Phần báo cáo thi công thông thường và biên bản sai phạm đều ch
 
 Tìm kiếm địa chỉ trên bản đồ được gửi qua `UrlFetchApp` từ Apps Script thay vì trình duyệt để tránh lỗi CORS/`Failed to fetch`; kết quả được giới hạn tại Việt Nam và lưu cache trong 6 giờ.
 
-Trước khi lưu báo cáo ngày, ứng dụng tải trạng thái mới nhất từ Google Sheets và kiểm tra trùng ngày/dự án/nhà thầu. Nếu báo cáo đã có hoặc bản đang sửa vừa được người khác cập nhật, hệ thống chặn lưu, giữ biểu mẫu mở và báo lý do. Máy chủ dùng khóa và số phiên bản dữ liệu để từ chối ghi nếu có cập nhật xảy ra đồng thời trong lúc lưu; giao diện thử đồng bộ và hòa trộn các thay đổi không xung đột. Các thao tác lưu dữ liệu khác cũng tải trạng thái mới nhất trước khi ghi.
+Trước khi lưu báo cáo ngày, ứng dụng tải trạng thái mới nhất để kiểm tra trùng ngày/dự án/nhà thầu. Các thao tác UI áp dụng optimistic update rồi ghi đúng dòng qua `upsert`; xóa gọi `delete`, nhập Excel dùng `batchUpsert`. Backend khóa thao tác bảng và kiểm tra token Admin; ảnh không còn được tham chiếu sẽ được dọn khỏi Drive sau khi cập nhật nhật ký.
 
 Khi triển khai bản cập nhật, chạy lại `npm run build:gas`, cập nhật `Index.html` và `code.gs` trong Apps Script, sau đó tạo phiên bản deployment mới.
