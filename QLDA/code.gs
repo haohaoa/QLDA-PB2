@@ -614,6 +614,9 @@ function writeRecord_(spreadsheet, sheetName, record, rowNumber) {
   const row = recordToSheetRow_(headers, record);
   if (rowNumber) {
     sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
+  } else if (sheetName === DATA_SHEETS.projects) {
+    sheet.insertRowBefore(2);
+    sheet.getRange(2, 1, 1, headers.length).setValues([row]);
   } else {
     sheet.appendRow(row);
   }
