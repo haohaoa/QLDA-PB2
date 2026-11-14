@@ -217,21 +217,21 @@ export const GisMap: React.FC<GisMapProps> = ({
   if (showProjectPicker) {
     return (
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="bg-gradient-to-br from-slate-950 via-cyan-950 to-teal-800 px-4 py-4 text-white sm:px-6 sm:py-5">
-          <div className="flex items-center justify-between gap-3">
+        <div className="bg-gradient-to-br from-slate-950 via-cyan-950 to-teal-800 px-3.5 py-3 text-white sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-200">Bản đồ tuyến</p>
-              <h2 className="text-lg font-black tracking-tight sm:text-xl">Chọn dự án</h2>
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-teal-200">Bản đồ tuyến</p>
+              <h2 className="text-base font-black tracking-tight sm:text-xl">Chọn dự án</h2>
             </div>
-            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-teal-50">
+            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold text-teal-50">
               {visibleProjects.length}/{projects.length} dự án
             </span>
           </div>
         </div>
 
-        <div className="grid gap-2 border-b border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)] sm:p-5">
+        <div className="grid gap-2 border-b border-slate-100 p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)] sm:p-5">
           <label className="relative block min-w-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 sm:h-4 sm:w-4" />
             <input
               type="search"
               value={projectSearch}
@@ -241,7 +241,7 @@ export const GisMap: React.FC<GisMapProps> = ({
               }}
               placeholder="Tìm tên, mã hoặc nhà thầu..."
               aria-label="Tìm dự án trên bản đồ tuyến"
-              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-8.5 pr-3 text-xs sm:py-2.5 sm:pl-9 sm:text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
             />
           </label>
           <label className="block min-w-0">
@@ -253,7 +253,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                 setProjectPickerPage(0);
               }}
               aria-label="Lọc bản đồ theo loại kế hoạch"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs sm:py-2.5 sm:text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
             >
               <option value="all">Tất cả loại kế hoạch</option>
               {planTypes.map((type) => (
@@ -264,7 +264,7 @@ export const GisMap: React.FC<GisMapProps> = ({
         </div>
 
         {projects.length > 0 ? (
-          <div className="p-3 sm:p-5">
+          <div className="p-2.5 sm:p-5">
             <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
             {pageProjects.map((project) => {
               const coordinateCount = project.points.filter(
@@ -275,19 +275,37 @@ export const GisMap: React.FC<GisMapProps> = ({
                   key={project.id}
                   type="button"
                   onClick={() => onChooseProject(project.id)}
-                  className="group flex min-w-0 items-center gap-3 px-3 py-2.5 text-left transition hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 sm:gap-4 sm:px-4"
+                  className="group flex w-full min-w-0 flex-col gap-1 px-3 py-2.5 text-left transition hover:bg-teal-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500 sm:flex-row sm:items-center sm:gap-4 sm:px-4"
                 >
+                  <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:hidden">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {project.code && (
+                        <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-teal-800">
+                          {project.code}
+                        </span>
+                      )}
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                        {planTypes.find((type) => type.id === project.planTypeId)?.name || 'Chưa phân loại'}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-mono text-slate-500">
+                      <span>{formatNumber(project.totalLengthM)}m</span>
+                      <span>· {coordinateCount} mốc</span>
+                      <ArrowRight className="h-3.5 w-3.5 text-teal-600" />
+                    </div>
+                  </div>
+
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-sm font-bold text-teal-800 sm:flex">
                       {project.code?.slice(0, 2) || <MapPin className="h-4 w-4" />}
                     </span>
                     <div className="min-w-0 flex-1">
                       {project.code && (
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                        <p className="hidden sm:block text-[9px] font-bold uppercase tracking-wider text-slate-400">
                           {project.code}
                         </p>
                       )}
-                      <h3 className="line-clamp-1 text-xs font-bold leading-snug text-slate-900 sm:text-sm">
+                      <h3 className="break-words text-[13px] font-extrabold leading-snug text-slate-900 sm:text-sm">
                         {project.name}
                       </h3>
                       <p className="mt-0.5 truncate text-[10px] text-slate-500 sm:text-xs">
@@ -302,7 +320,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                     <span>{formatNumber(project.totalLengthM)} m</span>
                     <span>{coordinateCount} mốc</span>
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-1 group-hover:text-teal-600" />
+                  <ArrowRight className="hidden sm:block h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-1 group-hover:text-teal-600" />
                 </button>
               );
             })}
@@ -358,40 +376,55 @@ export const GisMap: React.FC<GisMapProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5 sm:space-y-3">
       {/* Map Control Bar */}
-      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xs sm:gap-3 sm:rounded-2xl sm:p-4">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={onShowProjectPicker}
-            className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-left text-xs font-bold text-slate-900 transition hover:border-teal-400 sm:max-w-[min(65vw,32rem)]"
-          >
-            <span className="min-w-0 truncate">{currentProject?.name || 'Chọn dự án'}</span>
-            <Search className="h-3.5 w-3.5 shrink-0 text-teal-700" />
-          </button>
-        </div>
-        {currentProject && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-[11px] sm:text-xs">
-            {currentProject.currentWorkLocation && (
-              <span className="min-w-0 truncate text-teal-800">{currentProject.currentWorkLocation}</span>
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs sm:gap-3 sm:rounded-2xl sm:p-4">
+        <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            {currentProject && (
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                {currentProject.code && (
+                  <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-teal-800">
+                    {currentProject.code}
+                  </span>
+                )}
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
+                  {formatNumber(currentProject.completedLengthM)}/{formatNumber(currentProject.totalLengthM)} m
+                </span>
+              </div>
             )}
+            <button
+              type="button"
+              onClick={onShowProjectPicker}
+              className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-left text-xs font-extrabold text-slate-900 transition hover:border-teal-400 sm:max-w-[min(65vw,32rem)] sm:px-3"
+            >
+              <span className="min-w-0 break-words leading-snug">{currentProject?.name || 'Chọn dự án'}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                <Search className="h-3 w-3" />
+                <span>Đổi DA</span>
+              </span>
+            </button>
+          </div>
+        </div>
+        {currentProject && currentProject.currentWorkLocation && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-1.5 text-[11px] sm:text-xs">
+            <span className="min-w-0 break-words text-teal-800">📍 {currentProject.currentWorkLocation}</span>
           </div>
         )}
         {currentProject && (currentProject.contractors || []).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
+          <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-1.5">
             {(currentProject.contractors || []).map((contractor) => (
               <span
                 key={contractor.id}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700"
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700"
               >
-                <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: contractor.color }} />
+                <i className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: contractor.color }} />
                 <span className="break-words">{contractor.name}</span>
                 <span className="font-normal text-slate-500">{formatNumber(contractor.totalLengthM)}m</span>
               </span>
             ))}
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">
-              <i className="h-0 w-4 border-t-2 border-dashed border-slate-500" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+              <i className="h-0 w-3.5 border-t-2 border-dashed border-slate-500" />
               Chưa giao
             </span>
           </div>

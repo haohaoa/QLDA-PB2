@@ -7,6 +7,7 @@ interface FormattedNumberInputProps {
   className: string;
   min?: number;
   required?: boolean;
+  placeholder?: string;
 }
 
 export const FormattedNumberInput: React.FC<FormattedNumberInputProps> = ({
@@ -15,6 +16,7 @@ export const FormattedNumberInput: React.FC<FormattedNumberInputProps> = ({
   className,
   min,
   required,
+  placeholder,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [draft, setDraft] = useState(value === '' ? '' : formatNumber(value));
@@ -51,6 +53,7 @@ export const FormattedNumberInput: React.FC<FormattedNumberInputProps> = ({
       className={className}
       min={min}
       required={required}
+      placeholder={placeholder}
     />
   );
 };

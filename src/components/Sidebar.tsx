@@ -101,46 +101,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setIsMobileOpen(false);
   };
 
+  const activeTabItem = navItems.find((item) => item.id === currentTab);
+
   return (
     <>
       {/* Mobile Top Header Bar */}
-      <div className="lg:hidden sticky top-0 z-40 bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shadow-sm">
-        <div className="flex items-center gap-2.5">
+      <div className="lg:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md text-white px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-800/90 shadow-xs">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="p-1.5 rounded-lg bg-slate-800 text-slate-200 hover:text-white"
+            className="p-1.5 rounded-lg bg-slate-800/90 text-slate-200 hover:text-white shrink-0"
             aria-label="Toggle Navigation"
           >
-            {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-          <div className="flex flex-col">
-            <span className="font-bold text-sm leading-tight tracking-tight">Hạ tầng ngầm</span>
-            <span className="text-[10px] text-slate-400 truncate max-w-[170px]">
-              {activeProjectName || `${totalProjects} Dự án ngầm`}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-xs leading-tight tracking-tight text-white">
+                {activeTabItem?.label || 'Hạ tầng ngầm'}
+              </span>
+              <span className="rounded bg-blue-500/20 px-1.5 py-0.2 font-mono text-[9px] font-bold text-blue-300 border border-blue-500/30 shrink-0">
+                {totalProjects} DA
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-300 truncate font-medium" title={activeProjectName}>
+              {activeProjectName || 'Tất cả dự án ngầm hóa'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {requiresLogin && (
             <button
               onClick={isAdmin ? onLogout : onOpenLogin}
-              className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 ${
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${
                 isAdmin
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'bg-slate-800 text-slate-300 border border-slate-700'
               }`}
             >
-              {isAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-              <span>{isAdmin ? 'Đang mở quyền' : 'Đăng nhập'}</span>
+              {isAdmin ? <ShieldCheck className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+              <span>{isAdmin ? 'Admin' : 'Mở khóa'}</span>
             </button>
           )}
           <button
             onClick={isAdmin ? onOpenQuickEntry : onOpenLogin}
-            className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-[11px] font-bold shadow-2xs"
             title={isAdmin ? 'Nhập nhật ký nhanh' : 'Đăng nhập để chỉnh sửa'}
           >
-            {isAdmin ? <PlusCircle className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            {isAdmin ? <PlusCircle className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+            <span>Nhập BC</span>
           </button>
         </div>
       </div>
@@ -321,22 +331,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </aside>
 
-      {/* Mobile Sticky Bottom Navigation (Touch-friendly 4-tab thumb bar) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-800 px-2 py-1.5 flex items-center justify-around text-[10px] shadow-lg">
+      {/* Mobile Sticky Bottom Navigation (Touch-friendly 5-tab thumb bar) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 px-1.5 py-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] flex items-center justify-around text-[10px] shadow-lg">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
+          const mobileCount =
+            item.id === 'daily-report' && isAdmin && unsubmittedTodayCount > 0
+              ? unsubmittedTodayCount
+              : item.id === 'bulletins' && bulletinsCount > 0
+              ? bulletinsCount
+              : 0;
           return (
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
               aria-label={item.label}
-              className={`flex min-w-0 flex-1 flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors min-h-[46px] ${
-                isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              className={`relative flex min-w-0 flex-1 flex-col items-center justify-center py-1 px-1 rounded-xl transition-all min-h-[44px] ${
+                isActive
+                  ? 'bg-blue-600/15 text-blue-400 font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Icon className="w-4 h-4 mb-0.5" />
-              <span className="max-w-full truncate text-[9px]">{item.mobileLabel}</span>
+              <div className="relative">
+                <Icon className="w-4 h-4 mb-0.5" />
+                {mobileCount > 0 && (
+                  <span
+                    className={`absolute -top-1 -right-2.5 min-w-[14px] h-[14px] px-1 rounded-full text-[8px] font-black flex items-center justify-center leading-none ${
+                      item.badgeAlert ? 'bg-red-500 text-white' : 'bg-amber-500 text-slate-950'
+                    }`}
+                  >
+                    {mobileCount}
+                  </span>
+                )}
+              </div>
+              <span className="max-w-full truncate text-[9px] leading-tight">{item.mobileLabel}</span>
             </button>
           );
         })}

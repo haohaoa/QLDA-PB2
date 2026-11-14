@@ -395,20 +395,20 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full my-auto overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full my-auto overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 max-h-[94dvh] sm:max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <HardHat className="w-5 h-5" />
+        <div className="px-3.5 py-3 sm:px-5 sm:py-4 bg-slate-900 text-white flex items-center justify-between gap-2 shrink-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
+              <HardHat className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-bold">
-                {editingLog ? 'Chỉnh Sửa Báo Cáo Ngày' : 'Cập Nhật Nhật Ký & Tiến Độ Hằng Ngày (ADMIN)'}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm sm:text-base font-extrabold leading-tight">
+                {editingLog ? 'Chỉnh Sửa Báo Cáo Ngày' : 'Cập Nhật Nhật Ký & Tiến Độ'}
               </h2>
-              <p className="text-xs text-slate-300">
-                Ghi nhận số lượng đội thi công, mét đào, hố ga và lập biên bản nếu thi công sai thiết kế
+              <p className="text-[11px] sm:text-xs text-blue-200 font-semibold truncate">
+                {currentProject ? `${currentProject.code} — ${currentProject.name}` : 'Chọn dự án báo cáo'}
               </p>
             </div>
           </div>
@@ -421,7 +421,7 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
               isUploadingDailyPhoto ||
               isDeletingDailyPhoto
             }
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -437,20 +437,32 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
             isUploadingDailyPhoto ||
             isDeletingDailyPhoto
           }
-          className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs"
+          className="p-3.5 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 text-xs"
         >
-          <fieldset disabled={isSubmitting} className="min-w-0 space-y-4 border-0 p-0">
+          <fieldset disabled={isSubmitting} className="min-w-0 space-y-3 sm:space-y-4 border-0 p-0">
           {saveError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-semibold leading-relaxed text-red-800"
+              className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold leading-relaxed text-red-800"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{saveError}</span>
             </div>
           )}
+          {/* Active Project Banner on Mobile */}
+          {currentProject && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2">
+              <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-blue-700">
+                <span>DỰ ÁN ĐANG BÁO CÁO</span>
+                <span className="font-mono">{currentProject.code}</span>
+              </div>
+              <p className="mt-0.5 break-words text-xs font-extrabold text-slate-900">
+                {currentProject.name}
+              </p>
+            </div>
+          )}
           {/* Row 1: Date & Project & Contractor */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
             <div>
               <label className="block text-slate-700 font-bold mb-1">Ngày Báo Cáo:</label>
               <input

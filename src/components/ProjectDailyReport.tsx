@@ -820,34 +820,36 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
 
   if (showProjectPicker) {
     return (
-      <div className="space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+      <div className="space-y-3 pb-6 sm:space-y-6 sm:pb-12">
         <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:rounded-3xl">
-          <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 px-4 py-4 text-white sm:px-6 sm:py-5">
-            <div className="flex items-start gap-4">
-              <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/15">
-                <CalendarIcon className="h-5 w-5" />
+          <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 px-3.5 py-3 text-white sm:px-6 sm:py-5">
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3.5">
+                <div className="shrink-0 rounded-xl bg-white/10 p-2 ring-1 ring-white/15 sm:p-2.5">
+                  <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-200 sm:text-[10px]">
+                    Báo cáo thi công
+                  </p>
+                  <h2 className="truncate text-base font-black tracking-tight sm:text-2xl">
+                    Chọn dự án cần xem
+                  </h2>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200">
-                  Báo cáo thi công
-                </p>
-                <h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">
-                  Chọn dự án cần xem
-                </h2>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100 sm:text-sm">
-                  Chọn một dự án để xem báo cáo ngày, lịch thi công và tiến độ cập nhật.
-                </p>
+              <div className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-50 sm:px-3 sm:text-[11px]">
+                <Building2 className="h-3.5 w-3.5" />
+                <span>{visibleProjects.length}/{projects.length} dự án</span>
               </div>
             </div>
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold text-blue-50">
-              <Building2 className="h-4 w-4" />
-              {visibleProjects.length}/{projects.length} dự án
-            </div>
+            <p className="mt-1.5 hidden max-w-2xl text-xs leading-relaxed text-blue-100 sm:block sm:text-sm">
+              Chọn một dự án để xem báo cáo ngày, lịch thi công và tiến độ cập nhật.
+            </p>
           </div>
 
-          <div className="grid gap-2 border-b border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)] sm:p-5">
+          <div className="grid gap-2 border-b border-slate-100 p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)] sm:p-4">
             <label className="relative block min-w-0">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 sm:h-4 sm:w-4" />
               <input
                 type="search"
                 value={projectSearch}
@@ -855,9 +857,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   setProjectSearch(event.target.value);
                   setProjectPickerPage(0);
                 }}
-                placeholder="Tìm tên, mã hoặc nhà thầu..."
+                placeholder="Tìm tên dự án, mã hoặc nhà thầu..."
                 aria-label="Tìm dự án"
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-8.5 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:py-2.5 sm:pl-9 sm:text-sm"
               />
             </label>
             <label className="block min-w-0">
@@ -869,7 +871,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   setProjectPickerPage(0);
                 }}
                 aria-label="Lọc theo loại kế hoạch"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:py-2.5 sm:text-sm"
               >
                 <option value="all">Tất cả loại kế hoạch</option>
                 {planTypes.map((type) => (
@@ -880,8 +882,8 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
           </div>
 
           {projects.length > 0 ? (
-            <div className="p-3 sm:p-5">
-              <div className="space-y-3">
+            <div className="p-2.5 sm:p-5">
+              <div className="space-y-2.5 sm:space-y-3">
               {pageProjects.map((project, projectIndex) => {
                 const progress = project.totalLengthM > 0
                   ? Math.min(100, Math.round((project.completedLengthM / project.totalLengthM) * 100))
@@ -943,7 +945,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       delay: shouldReduceMotion ? 0 : Math.min(projectIndex * 0.025, 0.15),
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className={`min-w-0 overflow-hidden rounded-2xl border bg-white shadow-xs transition-all duration-200 motion-reduce:transform-none hover:-translate-y-0.5 hover:shadow-md ${
+                    className={`min-w-0 overflow-hidden rounded-xl border bg-white shadow-xs transition-all duration-200 motion-reduce:transform-none hover:-translate-y-0.5 hover:shadow-md sm:rounded-2xl ${
                       missingRecentDates.length > 0
                         ? 'border-rose-200/90'
                         : 'border-slate-200/90'
@@ -959,33 +961,26 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         onChooseProject(project.id);
                       }
                     }}
-                    className="group flex w-full min-w-0 flex-col gap-3 p-3.5 text-left transition-colors duration-200 hover:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:p-4.5"
+                    className="group flex w-full min-w-0 flex-col items-stretch gap-2 p-3 text-left transition-colors duration-200 hover:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:gap-2.5 sm:p-4"
                   >
-                    {/* Top Row: Icon, Code, Plan Type, and Status Badges */}
-                    <div className="flex min-w-0 items-start justify-between gap-2.5">
-                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white sm:h-10 sm:w-10">
-                          <Building2 className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+                    {/* Top Row: Badges on left, Status & Action Arrow on right */}
+                    <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white sm:h-7 sm:w-7">
+                          <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {project.code && (
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
-                                {project.code}
-                              </span>
-                            )}
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-700">
-                              {planTypes.find((type) => type.id === project.planTypeId)?.name || 'Chưa phân loại'}
-                            </span>
-                          </div>
-                          <h3 className="mt-1 line-clamp-1 break-words text-sm font-bold text-slate-900 group-hover:text-blue-700 sm:text-base">
-                            {project.name}
-                          </h3>
-                        </div>
+                        {project.code && (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-700 sm:text-[10px]">
+                            {project.code}
+                          </span>
+                        )}
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-700 sm:text-[10px]">
+                          {planTypes.find((type) => type.id === project.planTypeId)?.name || 'Chưa phân loại'}
+                        </span>
                       </div>
 
                       {/* Status Badges & Action Arrow */}
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1">
                         {projectIsActive ? (
                           <span
                             className={`rounded-full px-2 py-0.5 text-[9px] font-bold sm:text-[10px] ${
@@ -994,13 +989,20 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                 : 'border border-rose-200 bg-rose-50 text-rose-700'
                             }`}
                           >
-                            {allContractorsReported
-                              ? `Hôm nay: Đã đủ (${todayReportCount}/${expectedReportCount})`
-                              : `Hôm nay: Chưa đủ (${todayReportCount}/${expectedReportCount})`}
+                            <span className="sm:hidden">
+                              {allContractorsReported
+                                ? `Đủ (${todayReportCount}/${expectedReportCount})`
+                                : `Thiếu (${todayReportCount}/${expectedReportCount})`}
+                            </span>
+                            <span className="hidden sm:inline">
+                              {allContractorsReported
+                                ? `Hôm nay: Đã đủ (${todayReportCount}/${expectedReportCount})`
+                                : `Hôm nay: Chưa đủ (${todayReportCount}/${expectedReportCount})`}
+                            </span>
                           </span>
                         ) : (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">
-                            Ngoài kỳ thi công
+                            Ngoài kỳ
                           </span>
                         )}
 
@@ -1012,16 +1014,21 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       </div>
                     </div>
 
-                    {/* Middle Row: Contractor & Progress metrics (VISIBLE ON BOTH MOBILE AND DESKTOP) */}
-                    <div className="grid min-w-0 grid-cols-1 gap-2.5 pt-0.5 sm:grid-cols-12 sm:items-center sm:gap-4">
-                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600 sm:col-span-6">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    {/* Full-Width Project Name Row - Always 100% readable on mobile */}
+                    <h3 className="w-full break-words text-[13px] font-extrabold leading-snug text-slate-900 group-hover:text-blue-700 sm:text-base">
+                      {project.name}
+                    </h3>
+
+                    {/* Middle Row: Contractor & Progress metrics */}
+                    <div className="grid w-full min-w-0 grid-cols-1 gap-1.5 sm:grid-cols-12 sm:items-center sm:gap-4">
+                      <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-600 sm:col-span-6 sm:text-xs">
+                        <MapPin className="h-3 w-3 shrink-0 text-slate-400 sm:h-3.5 sm:w-3.5" />
                         <span className="truncate font-medium">
                           {project.contractors?.length
                             ? project.contractors.map((contractor) => contractor.name).join(', ')
                             : hasAssignedContractor
                             ? project.contractor
-                            : 'Chưa có nhà thầu thi công được phân công'}
+                            : 'Chưa phân công nhà thầu'}
                         </span>
                       </div>
 
@@ -1043,14 +1050,14 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   </button>
 
                   {projectIsActive && (
-                    <div className={`border-t px-3.5 py-2 sm:px-4.5 ${
+                    <div className={`border-t px-3 py-1.5 sm:px-4 sm:py-2 ${
                       missingRecentDates.length > 0
                         ? 'border-rose-100 bg-rose-50/40'
                         : 'border-slate-100 bg-emerald-50/30'
                     }`}>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="mr-1 text-[10px] font-bold text-slate-500">
-                          Chưa báo cáo:
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="mr-0.5 text-[9px] font-bold text-slate-500 sm:text-[10px]">
+                          Chưa BC:
                         </span>
                         {missingRecentDates.length > 0 ? (
                           missingRecentDates.map((status) => (
@@ -1061,22 +1068,22 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                 onSelectDate(status.date);
                                 onChooseProject(project.id, status.missingContractorKey);
                               }}
-                              className="inline-flex min-h-7 items-center gap-1 rounded-full border border-rose-200/90 bg-white px-2.5 py-0.5 text-[10px] font-bold text-rose-800 shadow-2xs transition hover:border-rose-300 hover:bg-rose-50 active:scale-95"
+                              className="inline-flex min-h-6 items-center gap-1 rounded-full border border-rose-200/90 bg-white px-2 py-0.5 text-[9px] font-bold text-rose-800 shadow-2xs transition hover:border-rose-300 hover:bg-rose-50 active:scale-95 sm:min-h-7 sm:px-2.5 sm:text-[10px]"
                               title={`Mở báo cáo ngày ${status.date.split('-').reverse().join('/')} · ${status.missingContractorNames.length ? `chưa báo cáo: ${status.missingContractorNames.join(', ')}` : 'chưa có báo cáo cho tuyến này'}`}
                               aria-label={`Mở báo cáo ngày ${status.date.split('-').reverse().join('/')} cho ${status.missingContractorNames[0] || 'tuyến này'}`}
                             >
                               <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                               <span>
                                 {status.isToday
-                                  ? `Hôm nay: Chưa đủ (${status.reportedCount}/${status.expectedCount})`
-                                  : `${status.date.slice(8)}/${status.date.slice(5, 7)}: Thiếu ${status.missingCount}/${status.expectedCount}`}
+                                  ? `Hôm nay (${status.reportedCount}/${status.expectedCount})`
+                                  : `${status.date.slice(8)}/${status.date.slice(5, 7)} (-${status.missingCount})`}
                               </span>
                             </button>
                           ))
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100/70 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                            <Check className="h-3 w-3 text-emerald-600" />
-                            <span>Đã đủ báo cáo {recentReportStatuses.length} ngày gần nhất</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100/70 px-2 py-0.5 text-[9px] font-bold text-emerald-800 sm:text-[10px]">
+                            <Check className="h-2.5 w-2.5 text-emerald-600 sm:h-3 sm:w-3" />
+                            <span>Đủ {recentReportStatuses.length} ngày gần nhất</span>
                           </span>
                         )}
                       </div>
@@ -1089,10 +1096,10 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       animate={{ opacity: 1, height: 'auto', y: 0 }}
                       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, y: -4 }}
                       transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-                      className="space-y-2 overflow-hidden border-t border-blue-100 bg-blue-50/50 p-3"
+                      className="space-y-1.5 overflow-hidden border-t border-blue-100 bg-blue-50/50 p-2.5 sm:space-y-2 sm:p-3"
                     >
-                      <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                        Chọn nhà thầu để xem báo cáo
+                      <p className="px-1 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px]">
+                        Chọn nhà thầu để xem báo cáo ({project.name})
                       </p>
                       {project.contractors!.map((contractor) => {
                         const contractorKey = getContractorKey(contractor.name);
@@ -1118,15 +1125,15 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                             onClick={() => {
                               onChooseProject(project.id, contractorKey);
                             }}
-                            className="flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-2.5 text-left transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 motion-reduce:transform-none"
+                            className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-2 text-left transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 motion-reduce:transform-none sm:gap-3 sm:p-2.5"
                           >
-                            <span className="flex min-w-0 items-start gap-2">
+                            <span className="flex min-w-0 flex-1 items-start gap-2">
                               <span
-                                className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                                className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
                                 style={{ backgroundColor: contractor.color }}
                               />
-                              <span className="min-w-0">
-                                <span className="block truncate text-xs font-bold text-slate-900">
+                              <span className="min-w-0 flex-1">
+                                <span className="block break-words text-[11px] font-bold leading-snug text-slate-900 sm:text-xs">
                                   {contractor.name}
                                 </span>
                                 <span className="mt-0.5 block truncate text-[10px] text-slate-500">
@@ -1135,18 +1142,18 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                 </span>
                               </span>
                             </span>
-                            <span className="flex shrink-0 flex-col items-end gap-1">
+                            <span className="flex shrink-0 flex-col items-end gap-0.5">
                               <span
-                                className={`rounded-full px-2 py-1 text-[9px] font-bold ${
+                                className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
                                   hasReported
                                     ? 'bg-emerald-50 text-emerald-700'
                                     : 'bg-rose-100 text-rose-700'
                                 }`}
                               >
-                                {hasReported ? 'Hôm nay: Đã báo cáo' : 'Hôm nay: Chưa báo cáo'}
+                                {hasReported ? 'Đã BC' : 'Chưa BC'}
                               </span>
                               {contractorRecentMissingDates.length > 0 && (
-                                <span className="max-w-36 text-right text-[9px] leading-relaxed text-rose-700">
+                                <span className="max-w-28 text-right text-[8px] leading-tight text-rose-700 sm:max-w-36 sm:text-[9px]">
                                   Thiếu: {contractorRecentMissingDates.map((status) =>
                                     status.isToday ? 'hôm nay' : `${status.date.slice(8)}/${status.date.slice(5, 7)}`
                                   ).join(', ')}
@@ -1163,12 +1170,12 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 );
               })}
               {visibleProjects.length === 0 && (
-                <div className="px-4 py-10 text-center text-sm text-slate-500">
+                <div className="px-4 py-8 text-center text-xs text-slate-500 sm:text-sm">
                   Không tìm thấy dự án phù hợp.
                 </div>
               )}
               </div>
-              <div className="flex flex-col gap-2 pt-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 pt-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
                 <span>
                   {visibleProjects.length
                     ? `Hiển thị ${currentProjectPickerPage * PROJECT_PICKER_PAGE_SIZE + 1}–${Math.min(
@@ -1182,12 +1189,12 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                     type="button"
                     onClick={() => setProjectPickerPage((page) => Math.max(0, page - 1))}
                     disabled={currentProjectPickerPage === 0}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3 sm:py-1.5"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                     Trước
                   </button>
-                  <span className="min-w-16 text-center font-semibold text-slate-600">
+                  <span className="min-w-14 text-center font-semibold text-slate-600">
                     {currentProjectPickerPage + 1} / {projectPickerPageCount}
                   </span>
                   <button
@@ -1196,7 +1203,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       setProjectPickerPage((page) => Math.min(projectPickerPageCount - 1, page + 1))
                     }
                     disabled={currentProjectPickerPage >= projectPickerPageCount - 1}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3 sm:py-1.5"
                   >
                     Tiếp
                     <ChevronRight className="h-3.5 w-3.5" />
@@ -1205,10 +1212,10 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               </div>
             </div>
           ) : (
-            <div className="px-6 py-16 text-center">
-              <Building2 className="mx-auto h-10 w-10 text-slate-300" />
-              <h3 className="mt-3 font-bold text-slate-800">Chưa có dự án nào</h3>
-              <p className="mt-1 text-sm text-slate-500">Tạo dự án trước để bắt đầu theo dõi báo cáo ngày.</p>
+            <div className="px-6 py-12 text-center">
+              <Building2 className="mx-auto h-9 w-9 text-slate-300" />
+              <h3 className="mt-2.5 text-sm font-bold text-slate-800">Chưa có dự án nào</h3>
+              <p className="mt-1 text-xs text-slate-500">Tạo dự án trước để bắt đầu theo dõi báo cáo ngày.</p>
             </div>
           )}
         </section>
@@ -1217,48 +1224,143 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   }
 
   return (
-    <div className="space-y-4 pb-8 sm:space-y-6 sm:pb-12">
-      {/* 1. Project Dropdown Selector & Control Bar */}
+    <div className="space-y-3 pb-8 sm:space-y-5 sm:pb-12">
+      {/* 1. Prominent Active Project Header & Mobile-App Control Card */}
       <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-xs sm:rounded-2xl">
-        <div className="space-y-4 p-3 sm:space-y-5 sm:p-5">
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
-            <div className="grid min-w-0 gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
-              <button
-                type="button"
-                onClick={onShowProjectPicker}
-                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Dự án
-              </button>
-              <div className="min-w-0">
-                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
-                  Dự án
-                </label>
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => onSelectProjectId(e.target.value)}
-                  className="min-h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-600 sm:rounded-xl sm:px-3.5"
-                >
-                  <option value="all">★ Tất Cả Dự Án Ngầm ({projects.length} Dự Án)</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({formatNumber(p.totalLengthM)}m)
-                    </option>
-                  ))}
-                </select>
+        {/* Top Project Identity Banner - Always visible first on mobile & desktop */}
+        {currentProject ? (
+          <div className="border-b border-slate-200/80">
+            <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-3.5 py-3 text-white sm:px-5 sm:py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onShowProjectPicker}
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold text-white transition hover:bg-white/20 sm:px-2.5 sm:text-xs"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Đổi dự án</span>
+                  </button>
+                  <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-200">
+                    {currentProject.code}
+                  </span>
+                  <span className="rounded-full bg-blue-500/25 px-2 py-0.5 text-[10px] font-semibold text-blue-100">
+                    {planTypes.find((type) => type.id === currentProject.planTypeId)?.name || 'Chưa phân loại'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold text-emerald-300 sm:text-xs">
+                    {displayedLengthTarget > 0
+                      ? Math.round((displayedLength / displayedLengthTarget) * 100)
+                      : 0}% hoàn thành
+                  </span>
+                  <button
+                    type="button"
+                    aria-expanded={showProjectBulletins}
+                    onClick={() => setShowProjectBulletins((shown) => !shown)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold transition hover:bg-white/20 sm:text-xs"
+                  >
+                    <AlertTriangle className="h-3 w-3 text-amber-300 sm:h-3.5 sm:w-3.5" />
+                    <span>TB ({activeBulletinsForProject.length})</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${showProjectBulletins ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
               </div>
+
+              <h2 className="mt-2 break-words text-sm font-black leading-snug tracking-tight text-white sm:text-xl">
+                {currentProject.name}
+              </h2>
+
+              {selectedContractorName && (
+                <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-cyan-200 sm:text-xs">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400" />
+                  <span className="break-words">Nhà thầu: {selectedContractorName}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 bg-slate-50/70 p-2.5 sm:grid-cols-4 sm:gap-2.5 sm:p-4">
+              {[
+                { label: 'Hợp đồng', value: `${formatNumber(displayedContractValue / 1_000_000_000, 2)} tỷ` },
+                { label: selectedContractorName ? 'Đoạn nhà thầu' : 'Chiều dài tuyến', value: `${formatNumber(displayedLength)}/${formatNumber(displayedLengthTarget)} m` },
+                { label: 'Hầm / hố ga', value: `${formatNumber(displayedChambers)}/${formatNumber(displayedChambersTarget)} hầm` },
+                { label: 'Thời gian', value: `${currentProject.startDate.split('-').reverse().join('/')}–${currentProject.finishDate.split('-').reverse().join('/')}` },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 sm:rounded-xl sm:p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">{item.label}</p>
+                  <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-slate-900 sm:text-sm" title={item.value}>{item.value}</p>
+                </div>
+              ))}
+              <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-[10px] sm:col-span-4 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs">
+                <span className="text-slate-600">
+                  <strong className="text-slate-500">CĐT:</strong> {currentProject.investor}
+                </span>
+                <span className="text-slate-300">•</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  <strong className="text-slate-500">Nhà thầu:</strong>
+                  {currentProject.contractors?.length ? currentProject.contractors.map((contractor) => (
+                    <span key={contractor.id} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-semibold text-slate-800 sm:text-[10px]">
+                      <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: contractor.color }} />
+                      <span>{contractor.name}</span>
+                    </span>
+                  )) : (
+                    <span className="font-semibold text-slate-700">{currentProject.contractor}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-3.5 py-2.5 text-white sm:px-5 sm:py-3.5">
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-blue-300 sm:text-[10px]">
+                Phạm vi báo cáo đang xem
+              </p>
+              <h2 className="text-sm font-black tracking-tight text-white sm:text-lg">
+                ★ Tất cả dự án ngầm hóa ({projects.length} dự án)
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onShowProjectPicker}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-white/20 sm:text-xs"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span>Danh sách dự án</span>
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-3 p-3 sm:space-y-4 sm:p-5">
+          <div className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
+            <div className="min-w-0">
+              <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
+                Chọn nhanh dự án
+              </label>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => onSelectProjectId(e.target.value)}
+                aria-label="Dự án"
+                className="min-h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-900 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-600 sm:min-h-10 sm:rounded-xl sm:px-3.5 sm:py-2 sm:text-sm"
+              >
+                <option value="all">★ Tất Cả Dự Án Ngầm ({projects.length} Dự Án)</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code ? `[${p.code}] ` : ''}{p.name} ({formatNumber(p.totalLengthM)}m)
+                  </option>
+                ))}
+              </select>
             </div>
             {contractorOptions.length > 0 && (
               <div className="min-w-0">
-                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
+                <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
                   Nhà thầu cần xem / báo cáo
                 </label>
                 <select
                   value={selectedContractorKey}
                   onChange={(event) => onSelectContractorKey(event.target.value)}
                   aria-label="Lọc báo cáo theo nhà thầu"
-                  className="min-h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 sm:rounded-xl"
+                  className="min-h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-900 sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2"
                 >
                   <option value="all">Tất cả nhà thầu</option>
                   {contractorOptions.map((contractor) => {
@@ -1279,14 +1381,14 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             )}
 
             {/* View Mode Toggle: Báo cáo ngày vs Danh sách tuần */}
-            <div className="min-w-0 xl:min-w-[220px]">
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
-                Chế độ
+            <div className="min-w-0 xl:min-w-[210px]">
+              <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500 sm:text-[11px]">
+                Chế độ xem
               </label>
-              <div className="grid w-full grid-cols-2 rounded-lg border border-slate-200 bg-slate-100 p-1 sm:rounded-xl">
+              <div className="grid w-full grid-cols-2 rounded-lg border border-slate-200 bg-slate-100 p-0.5 sm:rounded-xl sm:p-1">
                 <button
                   onClick={() => setViewMode('daily')}
-                  className={`min-w-0 rounded-md px-2 py-2 text-[11px] font-bold transition-all sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs ${
+                  className={`min-w-0 rounded-md px-2 py-1.5 text-[11px] font-bold transition-all sm:rounded-lg sm:px-3 sm:text-xs ${
                     viewMode === 'daily'
                       ? 'bg-white text-blue-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1296,7 +1398,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 </button>
                 <button
                   onClick={() => setViewMode('weekly')}
-                  className={`flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-2 text-[11px] font-bold transition-all sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs ${
+                  className={`flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-all sm:rounded-lg sm:px-3 sm:text-xs ${
                     viewMode === 'weekly'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1309,315 +1411,69 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             </div>
           </div>
 
-          <section className="space-y-4 rounded-2xl border border-blue-200 bg-white p-4 shadow-xs sm:p-5">
-            <div>
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
-                <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                Tra cứu và tải dữ liệu báo cáo theo khoảng ngày
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Chọn tuyến, nhà thầu và ngày bắt đầu – kết thúc. Kết quả gồm toàn bộ nhật ký, khối lượng,
-                thông tin sai phạm và liên kết ảnh của từng ngày.
-              </p>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1.4fr)_minmax(10rem,1fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)_auto] xl:items-end">
-              <label className="min-w-0 text-[11px] font-semibold text-slate-600">
-                <span className="mb-1 block">Tuyến / dự án</span>
-                <select
-                  value={rangeProjectId}
-                  onChange={(event) => {
-                    setRangeProjectId(event.target.value);
-                    setRangeContractorKey('all');
-                    setRangeQuery(null);
-                    setRangeQueryMessage(null);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
-                >
-                  <option value="">Chọn tuyến / dự án</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.code ? `${project.code} - ` : ''}{project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="min-w-0 text-[11px] font-semibold text-slate-600">
-                <span className="mb-1 block">Nhà thầu</span>
-                <select
-                  value={rangeContractorKey}
-                  onChange={(event) => {
-                    setRangeContractorKey(event.target.value);
-                    setRangeQuery(null);
-                    setRangeQueryMessage(null);
-                  }}
-                  disabled={!rangeProjectId}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:bg-slate-100"
-                >
-                  <option value="all">Tất cả nhà thầu</option>
-                  {rangeContractorOptions.map((contractor) => (
-                    <option key={contractor.key} value={contractor.key}>
-                      {contractor.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="min-w-0 text-[11px] font-semibold text-slate-600">
-                <span className="mb-1 block">Từ ngày</span>
-                <input
-                  type="date"
-                  value={rangeStartDate}
-                  onChange={(event) => {
-                    setRangeStartDate(event.target.value);
-                    setRangeQuery(null);
-                    setRangeQueryMessage(null);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
-                />
-              </label>
-
-              <label className="min-w-0 text-[11px] font-semibold text-slate-600">
-                <span className="mb-1 block">Đến ngày</span>
-                <input
-                  type="date"
-                  value={rangeEndDate}
-                  onChange={(event) => {
-                    setRangeEndDate(event.target.value);
-                    setRangeQuery(null);
-                    setRangeQueryMessage(null);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
-                />
-              </label>
-
-              <button
-                type="button"
-                onClick={handleRangeQuery}
-                className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
-              >
-                <Search className="h-4 w-4" />
-                Lấy dữ liệu
-              </button>
-            </div>
-
-            {rangeQueryMessage && (
-              <p
-                role={rangeQueryMessage.startsWith('Không') || rangeQueryMessage.startsWith('Vui lòng') || rangeQueryMessage.startsWith('Ngày bắt đầu') ? 'alert' : 'status'}
-                className={`text-xs ${
-                  rangeQueryMessage.startsWith('Không') || rangeQueryMessage.startsWith('Vui lòng') || rangeQueryMessage.startsWith('Ngày bắt đầu')
-                    ? 'text-red-700'
-                    : 'text-emerald-700'
-                }`}
-              >
-                {rangeQueryMessage}
-              </p>
-            )}
-
-            {rangeQuery && (
-              <div className="space-y-3 border-t border-slate-100 pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Kết quả: {projects.find((project) => project.id === rangeQuery.projectId)?.name}
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      {rangeQuery.startDate.split('-').reverse().join('/')} – {rangeQuery.endDate.split('-').reverse().join('/')}
-                      {' · '}
-                      {rangeQuery.contractorKey === 'all'
-                        ? 'Tất cả nhà thầu'
-                        : rangeContractorOptions.find((contractor) => contractor.key === rangeQuery.contractorKey)?.name}
-                      {' · '}{rangeResultLogs.length} nhật ký
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleExportRange()}
-                    disabled={rangeResultLogs.length === 0 || isExportingRange}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Download className="h-4 w-4" />
-                    {isExportingRange ? 'Đang tạo tệp...' : 'Tải xuống Excel'}
-                  </button>
-                </div>
-
-                {rangeResultLogs.length === 0 ? (
-                  <p className="rounded-lg bg-slate-50 px-3 py-5 text-center text-xs text-slate-500">
-                    Không có dữ liệu cho tuyến, nhà thầu và khoảng ngày đã chọn.
-                  </p>
-                ) : (
-                  <div className="max-h-[32rem] overflow-auto rounded-lg border border-slate-200">
-                    <table className="min-w-[1450px] w-full border-collapse text-left text-[11px]">
-                      <thead className="sticky top-0 z-10 bg-slate-100 text-slate-700">
-                        <tr>
-                          {[
-                            'Mã nhật ký',
-                            'STT',
-                            'Ngày',
-                            'Nhà thầu',
-                            'Nguồn lực',
-                            'Đào (m)',
-                            'Lắp ống (m)',
-                            'Hoàn trả (m)',
-                            'Đổ hố ga',
-                            'Lũy kế mương / HĐ (m)',
-                            'Tỷ lệ mương',
-                            'Lũy kế hố ga / HĐ',
-                            'Lý do ngưng',
-                            'Giám sát',
-                            'Ghi chú',
-                            'Sai phạm',
-                            'Ảnh ngày',
-                            'Ảnh sai phạm',
-                          ].map((header) => (
-                            <th key={header} className="whitespace-nowrap border-b border-r border-slate-200 px-2.5 py-2 font-bold last:border-r-0">
-                              {header}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {rangeResultLogs.map((log) => {
-                          const violation = log.violationReport;
-                          const dailyPhotos = getDailyLogPhotoUrls(log);
-                          const violationPhotos = getViolationPhotoUrls(violation);
-                          return (
-                            <tr key={log.id} className="align-top hover:bg-blue-50/40">
-                              <td className="whitespace-nowrap px-2.5 py-2 font-mono">{log.id}</td>
-                              <td className="px-2.5 py-2 text-right">{log.stt}</td>
-                              <td className="whitespace-nowrap px-2.5 py-2">{log.date.split('-').reverse().join('/')}</td>
-                              <td className="px-2.5 py-2 font-semibold">{log.contractorName}</td>
-                              <td className="px-2.5 py-2">{log.resources}</td>
-                              <td className="px-2.5 py-2 text-right">{formatNumber(log.excavationTodayM)}</td>
-                              <td className="px-2.5 py-2 text-right">{formatNumber(log.pipeLaidTodayM || 0)}</td>
-                              <td className="px-2.5 py-2 text-right">{formatNumber(log.restoredTodayM || 0)}</td>
-                              <td className="px-2.5 py-2 text-right">{formatNumber(log.chambersPouredToday)}</td>
-                              <td className="whitespace-nowrap px-2.5 py-2 text-right">
-                                {formatNumber(log.cumulativeTrenchM)} / {formatNumber(log.contractTrenchM)}
-                              </td>
-                              <td className="px-2.5 py-2 text-right">
-                                {log.contractTrenchM > 0
-                                  ? `${((log.cumulativeTrenchM / log.contractTrenchM) * 100).toFixed(1)}%`
-                                  : '0%'}
-                              </td>
-                              <td className="whitespace-nowrap px-2.5 py-2 text-right">
-                                {formatNumber(log.cumulativeChambers)} / {formatNumber(log.contractChambers)}
-                              </td>
-                              <td className="max-w-40 whitespace-normal px-2.5 py-2">{log.stoppageReason || ''}</td>
-                              <td className="px-2.5 py-2">{log.supervisorName || ''}</td>
-                              <td className="max-w-48 whitespace-normal px-2.5 py-2">{log.notes || ''}</td>
-                              <td className="max-w-56 whitespace-normal px-2.5 py-2">
-                                {violation?.hasViolation
-                                  ? [
-                                      `ID: ${violation.id}`,
-                                      `Mã: ${violation.code}`,
-                                      `${violation.violationTypeLabel} (${violation.violationType})`,
-                                      `Mô tả: ${violation.description}`,
-                                      `Khắc phục: ${violation.correctiveAction}`,
-                                      `Hạn: ${violation.deadlineHours} giờ`,
-                                      `Trạng thái: ${violation.status}`,
-                                      `Người lập: ${violation.supervisorSign}`,
-                                    ].join(' · ')
-                                  : 'Không'}
-                              </td>
-                              <td className="min-w-28 px-2.5 py-2">
-                                <div className="flex flex-wrap gap-1">
-                                  {dailyPhotos.map((url, index) => (
-                                    <button
-                                      key={`${url}-${index}`}
-                                      type="button"
-                                      onClick={() => setExpandedViolationPhoto(url)}
-                                      className="h-9 w-11 overflow-hidden rounded border border-blue-200"
-                                      aria-label={`Mở ảnh báo cáo ${index + 1}`}
-                                    >
-                                      <ViolationPhotoImage src={url} alt={`Ảnh báo cáo ${index + 1}`} className="h-full w-full object-cover" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </td>
-                              <td className="min-w-28 px-2.5 py-2">
-                                <div className="flex flex-wrap gap-1">
-                                  {violationPhotos.map((url, index) => (
-                                    <button
-                                      key={`${url}-${index}`}
-                                      type="button"
-                                      onClick={() => setExpandedViolationPhoto(url)}
-                                      className="h-9 w-11 overflow-hidden rounded border border-red-200"
-                                      aria-label={`Mở ảnh sai phạm ${index + 1}`}
-                                    >
-                                      <ViolationPhotoImage src={url} alt={`Ảnh sai phạm ${index + 1}`} className="h-full w-full object-cover" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
           {missingContractors.length > 0 && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 sm:p-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold text-rose-800">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 sm:p-3.5">
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
+                <p className="text-[11px] font-bold text-rose-800 sm:text-xs">
                   {missingContractors.length} lượt nhà thầu chưa báo cáo ngày {selectedDate.split('-').reverse().join('/')}
                 </p>
-                <span className="text-[10px] text-rose-700">Chọn nhà thầu để nhập đúng nhật ký</span>
+                <span className="text-[9px] text-rose-700 sm:text-[10px]">Chạm để nhập nhật ký</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {missingContractors.map((contractor) => (
-                  <button
-                    key={`${contractor.projectId}:${contractor.key}`}
-                    type="button"
-                    onClick={() => {
-                      onSelectContractorKey(contractor.key);
-                      if (isAdmin) {
-                        onOpenSupervisorForm(selectedDate, contractor.projectId, contractor.name);
-                      } else {
-                        onOpenLogin?.();
-                      }
-                    }}
-                    className="rounded-lg border border-rose-300 bg-white px-2.5 py-1.5 text-left text-[11px] font-bold text-rose-800 hover:bg-rose-100"
-                  >
-                    ⚠ {contractor.name}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-1.5">
+                {missingContractors.map((contractor) => {
+                  const contractorProj = projectById.get(contractor.projectId);
+                  return (
+                    <button
+                      key={`${contractor.projectId}:${contractor.key}`}
+                      type="button"
+                      onClick={() => {
+                        onSelectContractorKey(contractor.key);
+                        if (isAdmin) {
+                          onOpenSupervisorForm(selectedDate, contractor.projectId, contractor.name);
+                        } else {
+                          onOpenLogin?.();
+                        }
+                      }}
+                      className="rounded-lg border border-rose-300 bg-white px-2 py-1 text-left text-[10px] font-bold text-rose-800 hover:bg-rose-100 sm:px-2.5 sm:py-1.5 sm:text-[11px]"
+                    >
+                      ⚠ {contractor.name}
+                      {selectedProjectId === 'all' && contractorProj ? (
+                        <span className="ml-1 font-normal text-rose-600">
+                          ({contractorProj.code || contractorProj.name})
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Action buttons with Admin separation & Future Date restriction */}
-          <div className="flex w-full flex-col gap-2.5 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full flex-col gap-2 border-t border-slate-100 pt-2.5 sm:flex-row sm:items-center sm:justify-between sm:pt-3.5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {currentProject && !currentProjectHasAssignedContractor && (
                 <div
                   role="status"
-                  className="flex w-full items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"
+                  className="flex w-full items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 sm:text-xs"
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>
-                    <strong>Chưa có nhà thầu thi công được phân công.</strong>{' '}
-                    Vui lòng phân công nhà thầu trong Quản lý dự án trước khi báo cáo tiến độ.
+                    <strong>Chưa phân công nhà thầu.</strong> Vui lòng phân công trong Quản lý dự án trước khi báo cáo.
                   </span>
                 </div>
               )}
               {!selectedDateIsInSchedule ? (
-                <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-center text-xs font-bold text-slate-500 sm:min-h-10 sm:w-auto">
+                <div className="flex min-h-9 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-center text-xs font-bold text-slate-500 sm:min-h-10 sm:w-auto">
                   {currentProject && selectedDate < currentProject.startDate
                     ? 'Dự án chưa bắt đầu'
                     : currentProject && selectedDate > currentProject.finishDate
                     ? 'Dự án đã kết thúc'
-                    : 'Ngày này ngoài kỳ triển khai'}
+                    : 'Ngày ngoài kỳ triển khai'}
                 </div>
               ) : !currentProjectHasAssignedContractor ? null : isSelectedDateFuture ? (
                 <div
-                  className="flex min-h-11 w-full cursor-not-allowed select-none items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-center text-xs font-bold text-slate-400 sm:min-h-10 sm:w-auto"
+                  className="flex min-h-9 w-full cursor-not-allowed select-none items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-center text-xs font-bold text-slate-400 sm:min-h-10 sm:w-auto"
                   title="Ngày này chưa đến thời điểm thi công, nút cập nhật báo cáo bị ẩn"
                 >
                   Chưa Đến Ngày ({selectedDate.split('-').reverse().join('/')})
@@ -1631,7 +1487,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       selectedContractorName
                     )
                   }
-                  className="flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-xs transition-all hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] sm:min-h-10 sm:w-auto sm:text-xs"
+                  className="flex min-h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] sm:w-auto"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Cập nhật báo cáo</span>
@@ -1639,7 +1495,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               ) : (
                 <button
                   onClick={onOpenLogin}
-                  className="flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200 sm:min-h-10 sm:w-auto"
+                  className="flex min-h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200 sm:w-auto"
                   title="Đăng nhập tài khoản Quản trị để cập nhật số liệu nhật ký"
                 >
                   <Lock className="w-3.5 h-3.5 text-slate-500" />
@@ -1648,41 +1504,41 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               )}
             </div>
 
-            {/* Secondary actions: 2 columns on mobile, row on tablet/desktop */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-1.5">
+            {/* Secondary actions: 4 compact columns on mobile, row on tablet/desktop */}
+            <div className="grid grid-cols-4 gap-1.5 sm:flex sm:items-center sm:gap-1.5">
               <button
                 onClick={handleCopyZalo}
                 disabled={!selectedDateIsInSchedule || filteredLogs.length === 0}
-                className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200/90 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs"
                 title="Sao chép báo cáo gửi Zalo cho sếp"
               >
-                {copiedZalo ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedZalo ? 'Đã sao chép' : 'Zalo'}</span>
+                {copiedZalo ? <Check className="w-3.5 h-3.5 shrink-0 text-green-600" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{copiedZalo ? 'Đã chép' : 'Zalo'}</span>
               </button>
 
               <button
                 onClick={handleExport}
                 disabled={!selectedDateIsInSchedule || filteredLogs.length === 0}
-                className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200/90 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Xuất Excel</span>
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Xuất Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleDownloadTemplate}
-                className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200/90 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs"
                 title="Tải mẫu Excel để nhập nhiều báo cáo cùng lúc"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Mẫu Excel</span>
+                <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Mẫu Excel</span>
               </button>
 
               {isAdmin ? (
-                <label className="flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Nhập Excel</span>
+                <label className="flex min-h-9 min-w-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] font-semibold text-blue-800 transition-colors hover:bg-blue-100 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs">
+                  <Upload className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Nhập Excel</span>
                   <input
                     type="file"
                     accept=".xlsx"
@@ -1694,163 +1550,349 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 <button
                   type="button"
                   onClick={onOpenLogin}
-                  className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200/90 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Nhập Excel</span>
+                  <Upload className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Nhập Excel</span>
                 </button>
               )}
             </div>
           </div>
-        </div>
 
-        {currentProject && (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-            <div className="flex flex-col gap-3 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 p-4 text-white sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
-                    Tổng quan dự án
-                  </span>
-                  <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-blue-200">
-                    {currentProject.code}
-                  </span>
-                </div>
-                <h2 className="mt-1 text-lg font-black tracking-tight sm:text-xl">{currentProject.name}</h2>
-                {selectedContractorName && (
-                  <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-cyan-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    <span>Đang lọc nhà thầu: {selectedContractorName}</span>
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white shadow-xs">
-                  {displayedLengthTarget > 0
-                    ? Math.round((displayedLength / displayedLengthTarget) * 100)
-                    : 0}% hoàn thành
-                </span>
+          <details
+            open={!!rangeQuery || !!rangeQueryMessage}
+            className="group rounded-xl border border-blue-200/80 bg-blue-50/30 p-3 shadow-2xs sm:rounded-2xl sm:p-4"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold text-slate-900 marker:hidden sm:text-sm">
+              <span className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 shrink-0 text-blue-600" />
+                <span>Tra cứu & tải dữ liệu báo cáo theo khoảng ngày</span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+
+            <div className="mt-3 space-y-3 border-t border-blue-100/80 pt-3">
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Chọn tuyến, nhà thầu và ngày bắt đầu – kết thúc để xem và xuất Excel toàn bộ nhật ký, khối lượng, sai phạm và ảnh.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-[minmax(12rem,1.4fr)_minmax(10rem,1fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)_auto] xl:items-end">
+                <label className="col-span-2 min-w-0 text-[11px] font-semibold text-slate-600 sm:col-span-1">
+                  <span className="mb-1 block">Tuyến / dự án</span>
+                  <select
+                    value={rangeProjectId}
+                    onChange={(event) => {
+                      setRangeProjectId(event.target.value);
+                      setRangeContractorKey('all');
+                      setRangeQuery(null);
+                      setRangeQueryMessage(null);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 sm:px-3 sm:py-2"
+                  >
+                    <option value="">Chọn tuyến / dự án</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code ? `${project.code} - ` : ''}{project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="col-span-2 min-w-0 text-[11px] font-semibold text-slate-600 sm:col-span-1">
+                  <span className="mb-1 block">Nhà thầu</span>
+                  <select
+                    value={rangeContractorKey}
+                    onChange={(event) => {
+                      setRangeContractorKey(event.target.value);
+                      setRangeQuery(null);
+                      setRangeQueryMessage(null);
+                    }}
+                    disabled={!rangeProjectId}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 disabled:bg-slate-100 sm:px-3 sm:py-2"
+                  >
+                    <option value="all">Tất cả nhà thầu</option>
+                    {rangeContractorOptions.map((contractor) => (
+                      <option key={contractor.key} value={contractor.key}>
+                        {contractor.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="min-w-0 text-[11px] font-semibold text-slate-600">
+                  <span className="mb-1 block">Từ ngày</span>
+                  <input
+                    type="date"
+                    value={rangeStartDate}
+                    onChange={(event) => {
+                      setRangeStartDate(event.target.value);
+                      setRangeQuery(null);
+                      setRangeQueryMessage(null);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 sm:px-3 sm:py-2"
+                  />
+                </label>
+
+                <label className="min-w-0 text-[11px] font-semibold text-slate-600">
+                  <span className="mb-1 block">Đến ngày</span>
+                  <input
+                    type="date"
+                    value={rangeEndDate}
+                    onChange={(event) => {
+                      setRangeEndDate(event.target.value);
+                      setRangeQuery(null);
+                      setRangeQueryMessage(null);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 sm:px-3 sm:py-2"
+                  />
+                </label>
+
                 <button
                   type="button"
-                  aria-expanded={showProjectBulletins}
-                  onClick={() => setShowProjectBulletins((shown) => !shown)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold transition hover:bg-white/20"
+                  onClick={handleRangeQuery}
+                  className="col-span-2 flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 xl:col-span-1 sm:min-h-10"
                 >
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
-                  <span>Thông báo ({activeBulletinsForProject.length})</span>
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showProjectBulletins ? 'rotate-180' : ''}`} />
+                  <Search className="h-3.5 w-3.5" />
+                  Lấy dữ liệu
+                </button>
+              </div>
+
+              {rangeQueryMessage && (
+                <p
+                  role={rangeQueryMessage.startsWith('Không') || rangeQueryMessage.startsWith('Vui lòng') || rangeQueryMessage.startsWith('Ngày bắt đầu') ? 'alert' : 'status'}
+                  className={`text-xs ${
+                    rangeQueryMessage.startsWith('Không') || rangeQueryMessage.startsWith('Vui lòng') || rangeQueryMessage.startsWith('Ngày bắt đầu')
+                      ? 'text-red-700'
+                      : 'text-emerald-700'
+                  }`}
+                >
+                  {rangeQueryMessage}
+                </p>
+              )}
+
+              {rangeQuery && (
+                <div className="space-y-3 border-t border-slate-200/80 pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 sm:text-sm">
+                        Kết quả: {projects.find((project) => project.id === rangeQuery.projectId)?.name}
+                      </h3>
+                      <p className="text-[10px] text-slate-500 sm:text-[11px]">
+                        {rangeQuery.startDate.split('-').reverse().join('/')} – {rangeQuery.endDate.split('-').reverse().join('/')}
+                        {' · '}
+                        {rangeQuery.contractorKey === 'all'
+                          ? 'Tất cả nhà thầu'
+                          : rangeContractorOptions.find((contractor) => contractor.key === rangeQuery.contractorKey)?.name}
+                        {' · '}{rangeResultLogs.length} nhật ký
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleExportRange()}
+                      disabled={rangeResultLogs.length === 0 || isExportingRange}
+                      className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      {isExportingRange ? 'Đang tạo tệp...' : 'Tải xuống Excel'}
+                    </button>
+                  </div>
+
+                  {rangeResultLogs.length === 0 ? (
+                    <p className="rounded-lg bg-white px-3 py-4 text-center text-xs text-slate-500">
+                      Không có dữ liệu cho tuyến, nhà thầu và khoảng ngày đã chọn.
+                    </p>
+                  ) : (
+                    <div className="max-h-[28rem] overflow-auto rounded-lg border border-slate-200 bg-white">
+                      <table className="min-w-[1450px] w-full border-collapse text-left text-[11px]">
+                        <thead className="sticky top-0 z-10 bg-slate-100 text-slate-700">
+                          <tr>
+                            {[
+                              'Mã nhật ký',
+                              'STT',
+                              'Ngày',
+                              'Nhà thầu',
+                              'Nguồn lực',
+                              'Đào (m)',
+                              'Lắp ống (m)',
+                              'Hoàn trả (m)',
+                              'Đổ hố ga',
+                              'Lũy kế mương / HĐ (m)',
+                              'Tỷ lệ mương',
+                              'Lũy kế hố ga / HĐ',
+                              'Lý do ngưng',
+                              'Giám sát',
+                              'Ghi chú',
+                              'Sai phạm',
+                              'Ảnh ngày',
+                              'Ảnh sai phạm',
+                            ].map((header) => (
+                              <th key={header} className="whitespace-nowrap border-b border-r border-slate-200 px-2.5 py-2 font-bold last:border-r-0">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {rangeResultLogs.map((log) => {
+                            const violation = log.violationReport;
+                            const dailyPhotos = getDailyLogPhotoUrls(log);
+                            const violationPhotos = getViolationPhotoUrls(violation);
+                            return (
+                              <tr key={log.id} className="align-top hover:bg-blue-50/40">
+                                <td className="whitespace-nowrap px-2.5 py-2 font-mono">{log.id}</td>
+                                <td className="px-2.5 py-2 text-right">{log.stt}</td>
+                                <td className="whitespace-nowrap px-2.5 py-2">{log.date.split('-').reverse().join('/')}</td>
+                                <td className="px-2.5 py-2 font-semibold">{log.contractorName}</td>
+                                <td className="px-2.5 py-2">{log.resources}</td>
+                                <td className="px-2.5 py-2 text-right">{formatNumber(log.excavationTodayM)}</td>
+                                <td className="px-2.5 py-2 text-right">{formatNumber(log.pipeLaidTodayM || 0)}</td>
+                                <td className="px-2.5 py-2 text-right">{formatNumber(log.restoredTodayM || 0)}</td>
+                                <td className="px-2.5 py-2 text-right">{formatNumber(log.chambersPouredToday)}</td>
+                                <td className="whitespace-nowrap px-2.5 py-2 text-right">
+                                  {formatNumber(log.cumulativeTrenchM)} / {formatNumber(log.contractTrenchM)}
+                                </td>
+                                <td className="px-2.5 py-2 text-right">
+                                  {log.contractTrenchM > 0
+                                    ? `${((log.cumulativeTrenchM / log.contractTrenchM) * 100).toFixed(1)}%`
+                                    : '0%'}
+                                </td>
+                                <td className="whitespace-nowrap px-2.5 py-2 text-right">
+                                  {formatNumber(log.cumulativeChambers)} / {formatNumber(log.contractChambers)}
+                                </td>
+                                <td className="max-w-40 whitespace-normal px-2.5 py-2">{log.stoppageReason || ''}</td>
+                                <td className="px-2.5 py-2">{log.supervisorName || ''}</td>
+                                <td className="max-w-48 whitespace-normal px-2.5 py-2">{log.notes || ''}</td>
+                                <td className="max-w-56 whitespace-normal px-2.5 py-2">
+                                  {violation?.hasViolation
+                                    ? [
+                                        `ID: ${violation.id}`,
+                                        `Mã: ${violation.code}`,
+                                        `${violation.violationTypeLabel} (${violation.violationType})`,
+                                        `Mô tả: ${violation.description}`,
+                                        `Khắc phục: ${violation.correctiveAction}`,
+                                        `Hạn: ${violation.deadlineHours} giờ`,
+                                        `Trạng thái: ${violation.status}`,
+                                        `Người lập: ${violation.supervisorSign}`,
+                                      ].join(' · ')
+                                    : 'Không'}
+                                </td>
+                                <td className="min-w-28 px-2.5 py-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {dailyPhotos.map((url, index) => (
+                                      <button
+                                        key={`${url}-${index}`}
+                                        type="button"
+                                        onClick={() => setExpandedViolationPhoto(url)}
+                                        className="h-9 w-11 overflow-hidden rounded border border-blue-200"
+                                        aria-label={`Mở ảnh báo cáo ${index + 1}`}
+                                      >
+                                        <ViolationPhotoImage src={url} alt={`Ảnh báo cáo ${index + 1}`} className="h-full w-full object-cover" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="min-w-28 px-2.5 py-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {violationPhotos.map((url, index) => (
+                                      <button
+                                        key={`${url}-${index}`}
+                                        type="button"
+                                        onClick={() => setExpandedViolationPhoto(url)}
+                                        className="h-9 w-11 overflow-hidden rounded border border-red-200"
+                                        aria-label={`Mở ảnh sai phạm ${index + 1}`}
+                                      >
+                                        <ViolationPhotoImage src={url} alt={`Ảnh sai phạm ${index + 1}`} className="h-full w-full object-cover" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </details>
+
+          {excelStatus && (
+            <div
+              role={excelStatusIsError ? 'alert' : 'status'}
+              className={`whitespace-pre-line rounded-xl border px-3 py-2 text-xs ${
+                excelStatusIsError
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+            >
+              {excelStatus}
+            </div>
+          )}
+
+          {/* Highlight Today status if today is not submitted */}
+          {isAdmin && unsubmittedProjectsToday.length > 0 && (
+            <div className="flex flex-col justify-between gap-2.5 rounded-xl border border-amber-300/80 bg-gradient-to-r from-amber-50 via-amber-50/80 to-orange-50/50 p-3 sm:flex-row sm:items-center sm:rounded-2xl sm:p-4 shadow-xs">
+              <div className="flex items-center gap-2 text-[11px] text-amber-950 font-bold sm:text-xs">
+                <span className="relative flex h-2 w-2 shrink-0 sm:h-2.5 sm:w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600 sm:h-2.5 sm:w-2.5" />
+                </span>
+                <span>
+                  HÔM NAY ({TODAY_STR.split('-').reverse().join('/')}): Còn{' '}
+                  <strong className="text-red-700 font-black">{unsubmittedProjectsToday.length} dự án</strong> chưa chốt nhật ký!
+                </span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() =>
+                    handleActionRequiresAdmin(() => {
+                      onSelectDate(TODAY_STR);
+                      if (unsubmittedProjectsToday[0]) {
+                        onSelectProjectId(unsubmittedProjectsToday[0].id);
+                      }
+                      const project = unsubmittedProjectsToday[0];
+                      const firstMissingContractor = project?.contractors?.find(
+                        (contractor) =>
+                          (selectedContractorKey === 'all' ||
+                            getContractorKey(contractor.name) === selectedContractorKey) &&
+                          !todayLogs.some(
+                            (log) =>
+                              log.projectId === project.id &&
+                              getContractorKey(log.contractorName) === getContractorKey(contractor.name)
+                          )
+                      );
+                      onOpenSupervisorForm(
+                        TODAY_STR,
+                        project?.id,
+                        selectedContractorName || firstMissingContractor?.name
+                      );
+                    })
+                  }
+                  className="w-full rounded-lg bg-gradient-to-r from-red-600 to-rose-600 px-3.5 py-2 text-[11px] font-bold text-white shadow-xs transition hover:from-red-700 hover:to-rose-700 active:scale-[0.98] sm:w-auto sm:rounded-xl sm:text-xs"
+                >
+                  {isAdmin ? 'Nhập báo cáo hôm nay' : 'Đăng nhập Admin'}
                 </button>
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-2.5 p-3.5 sm:grid-cols-2 xl:grid-cols-4 sm:p-5 sm:gap-3">
-              {[
-                { label: 'Giá trị hợp đồng', value: `${formatNumber(displayedContractValue / 1_000_000_000, 2)} tỷ VNĐ` },
-                { label: selectedContractorName ? 'Chiều dài đoạn nhà thầu' : 'Chiều dài tuyến', value: `${formatNumber(displayedLength)} / ${formatNumber(displayedLengthTarget)} m` },
-                { label: 'Hầm / hố ga', value: `${formatNumber(displayedChambers)} / ${formatNumber(displayedChambersTarget)} hầm` },
-                { label: 'Thời gian thi công', value: `${currentProject.startDate.split('-').reverse().join('/')} – ${currentProject.finishDate.split('-').reverse().join('/')}` },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 sm:p-3.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
-                  <p className="mt-1 font-mono text-xs font-bold text-slate-900 sm:text-sm">{item.value}</p>
-                </div>
-              ))}
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 sm:col-span-2 sm:p-3.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chủ đầu tư</p>
-                <p className="mt-1 text-xs font-bold text-slate-800">{currentProject.investor}</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 sm:col-span-2 sm:p-3.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Nhà thầu</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {currentProject.contractors?.length ? currentProject.contractors.map((contractor) => (
-                    <span key={contractor.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-slate-800 shadow-2xs">
-                      <i className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: contractor.color }} />
-                      <span className="break-words">{contractor.name}</span>
-                    </span>
-                  )) : (
-                    <span className="text-xs font-semibold text-slate-700">{currentProject.contractor}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {excelStatus && (
-          <div
-            role={excelStatusIsError ? 'alert' : 'status'}
-            className={`whitespace-pre-line rounded-xl border px-3 py-2 text-xs ${
-              excelStatusIsError
-                ? 'border-red-200 bg-red-50 text-red-800'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            }`}
-          >
-            {excelStatus}
-          </div>
-        )}
-
-        {/* Highlight Today status if today is not submitted */}
-        {isAdmin && unsubmittedProjectsToday.length > 0 && (
-          <div className="flex flex-col justify-between gap-3 rounded-2xl border border-amber-300/80 bg-gradient-to-r from-amber-50 via-amber-50/80 to-orange-50/50 p-3.5 sm:flex-row sm:items-center sm:p-4 shadow-xs">
-            <div className="flex items-center gap-2.5 text-xs text-amber-950 font-bold">
-              <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+          {selectedProjectId === 'all' && activeBulletinsForProject.length > 0 && (
+            <button
+              type="button"
+              aria-expanded={showProjectBulletins}
+              onClick={() => setShowProjectBulletins((shown) => !shown)}
+              className="flex w-full items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-xs font-bold text-amber-900"
+            >
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Thông báo hiện trường ({activeBulletinsForProject.length})
               </span>
-              <span>
-                CẢNH BÁO HÔM NAY ({TODAY_STR.split('-').reverse().join('/')}): Có{' '}
-                <strong className="text-red-700 font-black">{unsubmittedProjectsToday.length} dự án</strong> chưa chốt báo cáo nhật ký!
-              </span>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() =>
-                  handleActionRequiresAdmin(() => {
-                    onSelectDate(TODAY_STR);
-                    if (unsubmittedProjectsToday[0]) {
-                      onSelectProjectId(unsubmittedProjectsToday[0].id);
-                    }
-                    const project = unsubmittedProjectsToday[0];
-                    const firstMissingContractor = project?.contractors?.find(
-                      (contractor) =>
-                        (selectedContractorKey === 'all' ||
-                          getContractorKey(contractor.name) === selectedContractorKey) &&
-                        !todayLogs.some(
-                          (log) =>
-                            log.projectId === project.id &&
-                            getContractorKey(log.contractorName) === getContractorKey(contractor.name)
-                        )
-                    );
-                    onOpenSupervisorForm(
-                      TODAY_STR,
-                      project?.id,
-                      selectedContractorName || firstMissingContractor?.name
-                    );
-                  })
-                }
-                className="w-full rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:from-red-700 hover:to-rose-700 active:scale-[0.98] sm:w-auto sm:py-2"
-              >
-                {isAdmin ? 'Nhập báo cáo hôm nay ngay' : 'Đăng nhập Admin để nhập'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {selectedProjectId === 'all' && activeBulletinsForProject.length > 0 && (
-          <button
-            type="button"
-            aria-expanded={showProjectBulletins}
-            onClick={() => setShowProjectBulletins((shown) => !shown)}
-            className="flex w-full items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-bold text-amber-900"
-          >
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Thông báo hiện trường ({activeBulletinsForProject.length})
-            </span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${showProjectBulletins ? 'rotate-180' : ''}`} />
-          </button>
-        )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${showProjectBulletins ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+        </div>
 
         {showProjectBulletins && activeBulletinsForProject.length > 0 && (
           <div className="space-y-2 pt-1 border-t border-slate-100">
@@ -1903,21 +1945,21 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
       </div>
 
       {viewMode === 'weekly' && (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-          <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 px-4 py-5 text-white sm:px-6">
+          <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 px-3.5 py-3.5 text-white sm:px-6 sm:py-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">
               Theo dõi tiến độ
             </p>
-            <h2 className="mt-1 text-lg font-black sm:text-xl">So sánh khối lượng tuần này với tuần trước</h2>
-            <p className="mt-1 text-xs text-blue-100">
-              {selectedProjectId === 'all' ? 'Toàn bộ dự án' : currentProject?.name} ·
+            <h2 className="mt-0.5 text-sm font-black sm:text-xl">So sánh khối lượng tuần này với tuần trước</h2>
+            <p className="mt-1 break-words text-[11px] text-blue-100 sm:text-xs">
+              <strong className="text-white">{selectedProjectId === 'all' ? 'Toàn bộ dự án' : currentProject?.name}</strong> ·
               {' '}{previousWeekRange.start.split('-').reverse().join('/')} – {previousWeekRange.end.split('-').reverse().join('/')}
               {' '}so với {currentWeekRange.start.split('-').reverse().join('/')} – {TODAY_STR.split('-').reverse().join('/')}
             </p>
           </div>
 
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-2 p-3 sm:gap-3 sm:p-5 xl:grid-cols-4">
             {[
               { label: 'Khối lượng tuyến', unit: 'm', current: thisWeekOutput.trench, previous: lastWeekOutput.trench },
               { label: 'Ống đã lắp', unit: 'm', current: thisWeekOutput.pipe, previous: lastWeekOutput.pipe },
@@ -1926,19 +1968,19 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             ].map((metric) => {
               const difference = metric.current - metric.previous;
               const changeLabel =
-                difference > 0 ? `Tăng ${formatNumber(difference)} ${metric.unit}` :
-                difference < 0 ? `Giảm ${formatNumber(Math.abs(difference))} ${metric.unit}` :
-                'Không thay đổi';
+                difference > 0 ? `+${formatNumber(difference)} ${metric.unit}` :
+                difference < 0 ? `-${formatNumber(Math.abs(difference))} ${metric.unit}` :
+                'Không đổi';
               return (
-                <article key={metric.label} className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-xs font-semibold text-slate-600">{metric.label}</p>
-                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
-                    {formatNumber(metric.current)} <span className="text-sm font-semibold text-slate-500">{metric.unit}</span>
+                <article key={metric.label} className="rounded-xl border border-slate-200 p-2.5 sm:p-4">
+                  <p className="text-[11px] font-semibold text-slate-600 sm:text-xs">{metric.label}</p>
+                  <p className="mt-1 text-lg font-black tracking-tight text-slate-900 sm:mt-2 sm:text-2xl">
+                    {formatNumber(metric.current)} <span className="text-xs font-semibold text-slate-500 sm:text-sm">{metric.unit}</span>
                   </p>
-                  <p className="mt-1 text-[11px] text-slate-500">
+                  <p className="mt-0.5 text-[10px] text-slate-500 sm:mt-1 sm:text-[11px]">
                     Tuần trước: {formatNumber(metric.previous)} {metric.unit}
                   </p>
-                  <p className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  <p className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold sm:mt-3 sm:px-2.5 sm:py-1 sm:text-[11px] ${
                     difference > 0
                       ? 'bg-emerald-50 text-emerald-700'
                       : difference < 0
@@ -1951,20 +1993,19 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               );
             })}
           </div>
-          <p className="px-4 pb-4 text-[11px] text-slate-500 sm:px-5">
+          <p className="px-3 pb-3 text-[10px] text-slate-500 sm:px-5 sm:pb-4 sm:text-[11px]">
             Số liệu tổng hợp từ nhật ký thi công trong thời gian dự án hoạt động. Tuần hiện tại được tính từ thứ Hai đến hôm nay.
           </p>
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+        <section className="space-y-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:space-y-3 sm:p-5">
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <h3 className="flex items-center gap-2 text-xs font-bold text-slate-900 sm:text-sm">
               <FileSpreadsheet className="h-4 w-4 text-blue-600" />
               Cập nhật nhật ký bằng Excel
             </h3>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 sm:text-xs">
               Chọn dự án, tải mẫu có sẵn ngày thi công và nhật ký đã nhập. Điền sản lượng theo ngày rồi tải tệp lên.
-              Dòng để trống sẽ được bỏ qua; số lũy kế được hệ thống tự tính.
             </p>
           </div>
 
@@ -1974,7 +2015,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               <select
                 value={historyTemplateProjectId}
                 onChange={(event) => setHistoryTemplateProjectId(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-semibold text-slate-800"
               >
                 <option value="">Chọn dự án</option>
                 {projects.map((project) => (
@@ -1985,38 +2026,40 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               </select>
             </label>
 
-            <button
-              type="button"
-              onClick={handleDownloadHistoryTemplate}
-              disabled={!historyTemplateProjectId}
-              className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" />
-              Tải mẫu dự án
-            </button>
-
-            {isAdmin ? (
-              <label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700">
-                <Upload className="h-4 w-4" />
-                Nhập nhật ký
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  className="hidden"
-                  disabled={!historyTemplateProjectId}
-                  onChange={handleImportHistoryFile}
-                />
-              </label>
-            ) : (
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <button
                 type="button"
-                onClick={onOpenLogin}
-                className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
+                onClick={handleDownloadHistoryTemplate}
+                disabled={!historyTemplateProjectId}
+                className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10"
               >
-                <Lock className="h-4 w-4" />
-                Đăng nhập để nhập
+                <Download className="h-3.5 w-3.5" />
+                Tải mẫu dự án
               </button>
-            )}
+
+              {isAdmin ? (
+                <label className="flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:min-h-10">
+                  <Upload className="h-3.5 w-3.5" />
+                  Nhập nhật ký
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    className="hidden"
+                    disabled={!historyTemplateProjectId}
+                    onChange={handleImportHistoryFile}
+                  />
+                </label>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:min-h-10"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  Đăng nhập để nhập
+                </button>
+              )}
+            </div>
           </div>
 
           {excelStatus && (
@@ -2301,10 +2344,10 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
       {viewMode === 'daily' && (
         <>
           {/* 2. Lịch thi công theo kỳ dự án */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/90 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-3 sm:mb-4 pb-2.5 sm:pb-3 border-b border-slate-100">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-start gap-2">
                   <button
                     type="button"
                     onClick={() => setCalendarMonth(previousCalendarMonthKey)}
@@ -2314,7 +2357,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <h3 className="text-base font-bold capitalize text-slate-900 flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-bold capitalize text-slate-900 flex items-center gap-1.5 sm:gap-2">
                     <CalendarIcon className="w-4 h-4 text-blue-600" />
                     Lịch thi công {calendarMonthLabel}
                   </h3>
@@ -2328,34 +2371,34 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
                   Chọn ngày để xem đúng nội dung thi công và khối lượng đã nhập. Ngày có biên bản vi phạm sai thiết kế được làm nổi bật.
                 </p>
               </div>
 
               {/* Calendar Legend */}
-              <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>Có thi công</span>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] sm:text-[11px] text-slate-600">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500" />
+                  <span>Thi công</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <span className="text-amber-800 font-semibold">Nghỉ: lý do</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-amber-500" />
+                  <span className="text-amber-800 font-semibold">Nghỉ</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
-                  <span className="text-red-700 font-bold">Có biên bản vi phạm (Ảnh)</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-red-600 animate-pulse" />
+                  <span className="text-red-700 font-bold">Vi phạm</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-                  <span>Chưa có báo cáo</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-slate-300" />
+                  <span>Chưa BC</span>
                 </span>
               </div>
             </div>
 
             {/* Days of week */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[11px] font-bold text-slate-500 mb-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] sm:text-[11px] font-bold text-slate-500 mb-1.5 sm:mb-2">
               <div className="text-red-500">CN</div>
               <div>T2</div>
               <div>T3</div>
@@ -2369,7 +2412,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {calendarCells.map((cell, idx) => {
                 if (!cell.day || !cell.dateStr) {
-                  return <div key={`empty-${idx}`} className="h-16 sm:h-20 bg-slate-50/40 rounded-xl" />;
+                  return <div key={`empty-${idx}`} className="h-14 sm:h-20 bg-slate-50/40 rounded-lg sm:rounded-xl" />;
                 }
 
                 const isSelected = cell.dateStr === selectedDate;
@@ -2398,13 +2441,13 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         selectCalendarDate(cell.dateStr!);
                       }
                     }}
-                    className={`relative h-24 sm:h-22 p-1.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    className={`relative h-14 sm:h-22 p-1 sm:p-1.5 rounded-lg sm:rounded-xl border transition-all flex flex-col justify-between ${
                       isSelected
                         ? 'ring-2 ring-blue-600 border-blue-600 bg-blue-50/70 shadow-sm'
                         : !isInSchedule
                         ? 'border-slate-200/60 bg-slate-50/40 opacity-60'
                         : hasViolation
-                        ? 'border-2 border-red-500 bg-red-100/90 ring-2 ring-red-400 shadow-md animate-pulse/20'
+                        ? 'border-2 border-red-500 bg-red-100/90 ring-1 sm:ring-2 ring-red-400 shadow-xs'
                         : isToday
                         ? 'border-2 border-amber-500 bg-amber-50/40 shadow-xs'
                         : isFuture
@@ -2416,13 +2459,13 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       <button
                         type="button"
                         disabled={!isInSchedule}
-                        className={`text-xs font-bold font-mono ${
+                        className={`text-[11px] sm:text-xs font-bold font-mono leading-none ${
                           isSelected
                             ? 'text-blue-900 font-black'
                             : !isInSchedule
                             ? 'text-slate-400'
                             : isToday
-                            ? 'text-white bg-red-600 px-1.5 py-0.2 rounded-full font-black'
+                            ? 'text-white bg-red-600 px-1 sm:px-1.5 py-0.5 rounded-full font-black text-[10px] sm:text-xs'
                             : hasViolation
                             ? 'text-red-800 font-black'
                             : 'text-slate-700'
@@ -2435,38 +2478,41 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         <span className="text-[8px] text-slate-400">—</span>
                       ) : hasViolation ? (
                         <span
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-xs"
+                          className="flex h-4 w-4 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-xs"
                           title="CÓ BIÊN BẢN VI PHẠM SAI THIẾT KẾ (KÈM ẢNH CHỤP HIỆN TRƯỜNG)"
                         >
-                          <Camera className="h-3 w-3" />
+                          <Camera className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         </span>
                       ) : dayStatus.status === 'working' ? (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Có thi công" />
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500" title="Có thi công" />
                       ) : dayStatus.status === 'off' ? (
-                        <span className="w-2 h-2 rounded-full bg-amber-500" title={dayStatus.label} />
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500" title={dayStatus.label} />
                       ) : null}
                     </div>
 
                     {/* Status Text & Direct Update Link */}
-                    <div className="text-[9px] sm:text-[10px]">
+                    <div className="text-[8px] sm:text-[10px]">
                       {!isInSchedule ? (
-                        <div className="py-1 text-center text-[9px] text-slate-400">
-                          {currentProject && cell.dateStr < currentProject.startDate
-                            ? 'Chưa khởi công'
-                            : currentProject && cell.dateStr > currentProject.finishDate
-                            ? 'Đã kết thúc'
-                            : 'Ngoài kỳ'}
+                        <div className="py-0.5 text-center text-[8px] sm:text-[9px] text-slate-400 truncate">
+                          <span className="sm:hidden">—</span>
+                          <span className="hidden sm:inline">
+                            {currentProject && cell.dateStr < currentProject.startDate
+                              ? 'Chưa khởi công'
+                              : currentProject && cell.dateStr > currentProject.finishDate
+                              ? 'Đã kết thúc'
+                              : 'Ngoài kỳ'}
+                          </span>
                         </div>
                       ) : hasViolation ? (
                         <button
                           type="button"
-                          className="flex min-h-7 w-full min-w-0 flex-col items-start justify-center truncate rounded border border-red-300/80 bg-red-200/80 px-1 py-0.5 text-left font-black text-red-950 hover:bg-red-300"
+                          className="flex min-h-4 sm:min-h-7 w-full min-w-0 flex-col items-start justify-center truncate rounded border border-red-300/80 bg-red-200/80 px-1 py-0.5 text-left font-black text-red-950 hover:bg-red-300"
                           title={`${dayStatus.label} · Nhấp để xem biên bản vi phạm và ảnh hiện trường`}
                           aria-label="Xem biên bản vi phạm"
                         >
-                          <span className="flex items-center gap-1">
-                            <Camera className="h-3 w-3 shrink-0 text-red-700" />
-                            <span className="truncate text-[9px]">Sai phạm</span>
+                          <span className="flex items-center gap-0.5 sm:gap-1">
+                            <Camera className="hidden sm:block h-3 w-3 shrink-0 text-red-700" />
+                            <span className="truncate text-[8px] sm:text-[9px]">Sai phạm</span>
                           </span>
                           {dayStatus.status !== 'working' && (
                             <span className="hidden w-full truncate text-[8px] font-semibold sm:block">
@@ -2474,7 +2520,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                             </span>
                           )}
                           {dayStatus.status === 'working' && (
-                            <span className="flex w-full min-w-0 flex-col gap-0.5 text-left leading-tight">
+                            <span className="hidden sm:flex w-full min-w-0 flex-col gap-0.5 text-left leading-tight">
                               <span className="text-[8px] font-bold text-emerald-800 sm:text-[9px]">Thi công</span>
                               <span className="line-clamp-2 break-words text-[8px] font-semibold sm:text-[9px]">
                                 NL: {dayStatus.resourcesSummary}
@@ -2488,33 +2534,34 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       ) : dayStatus.status === 'working' ? (
                         <button
                           type="button"
-                          className="flex min-h-7 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden text-left leading-tight"
+                          className="flex min-h-4 sm:min-h-7 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden text-left leading-tight"
                           title={dayStatus.label}
                           aria-label={dayStatus.label}
                         >
-                          <span className="text-[8px] font-bold text-emerald-800 sm:text-[9px]">Thi công</span>
-                          <span className="line-clamp-2 w-full break-words text-[8px] font-semibold text-emerald-700 sm:text-[9px]">
+                          <span className="sm:hidden w-full truncate rounded bg-emerald-50 px-1 py-0.5 text-center font-mono text-[8px] font-bold text-emerald-800">
+                            {dayStatus.excavationSummary || 'Làm'}
+                          </span>
+                          <span className="hidden sm:block text-[8px] font-bold text-emerald-800 sm:text-[9px]">Thi công</span>
+                          <span className="hidden sm:block line-clamp-2 w-full break-words text-[8px] font-semibold text-emerald-700 sm:text-[9px]">
                             NL: {dayStatus.resourcesSummary}
                           </span>
-                          <span className="w-full truncate text-[8px] font-bold text-emerald-800 sm:text-[9px]">
+                          <span className="hidden sm:block w-full truncate text-[8px] font-bold text-emerald-800 sm:text-[9px]">
                             KL: {dayStatus.excavationSummary}
                           </span>
                         </button>
                       ) : dayStatus.status === 'off' ? (
                         <span
-                          className={`block min-h-7 w-full min-w-0 truncate py-1 text-center font-bold sm:text-left ${
-                            'text-amber-700'
-                          }`}
+                          className="block min-h-4 sm:min-h-7 w-full min-w-0 truncate py-0.5 sm:py-1 text-center font-bold text-amber-700 sm:text-left"
                           title={dayStatus.label}
                           aria-label={dayStatus.label}
                         >
-                          <span className="sm:hidden">Nghỉ</span>
+                          <span className="sm:hidden rounded bg-amber-50 px-1 py-0.5 text-[8px]">Nghỉ</span>
                           <span className="hidden sm:inline">{dayStatus.label}</span>
                         </span>
                       ) : dayStatus.status === 'none' ? (
                         isFuture ? (
                           /* CHƯA ĐẾN NGÀY: ẨN ĐI NÚT BÁO CÁO */
-                          <div className="text-center text-[10px] text-slate-300 select-none py-1">-</div>
+                          <div className="text-center text-[9px] sm:text-[10px] text-slate-300 select-none py-0.5">-</div>
                         ) : (
                           <button
                             type="button"
@@ -2527,7 +2574,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                 );
                               });
                             }}
-                            className="flex min-h-7 w-full min-w-0 items-center justify-center gap-1 truncate rounded border border-blue-200/60 bg-blue-50/80 px-1 py-0.5 text-center text-blue-600 hover:bg-blue-100 hover:text-blue-800"
+                            className="flex min-h-5 sm:min-h-7 w-full min-w-0 items-center justify-center gap-1 truncate rounded border border-blue-200/60 bg-blue-50/80 px-1 py-0.5 text-center text-blue-600 hover:bg-blue-100 hover:text-blue-800"
                             title="Cập nhật báo cáo cho ngày này đúng nhà thầu đã chọn"
                             aria-label="Thêm báo cáo cho ngày này"
                           >
@@ -2543,51 +2590,74 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             </div>
 
             {filteredLogs.length > 0 && (
-              <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:hidden">
-                <h3 className="text-xs font-bold text-slate-800">
-                  Nội dung đã nhập ngày {selectedDate.split('-').reverse().join('/')}
-                </h3>
-                {filteredLogs.map((log) => (
-                  <div key={log.id} className="rounded-lg bg-white p-3 text-xs shadow-xs">
-                    <p className="mb-1 break-words font-semibold text-slate-600">{log.contractorName}</p>
-                    <p className="break-words font-semibold text-emerald-800">
-                      {isStoppedLog(log)
-                        ? `Nghỉ: ${getStoppageReason(log) || 'chưa ghi lý do'}`
-                        : `Thi công: ${log.resources?.trim() || 'Chưa ghi nguồn lực'}`}
-                    </p>
-                    {!isStoppedLog(log) && (
-                      <p className="mt-1 font-mono text-slate-700">
-                        Khối lượng (Đào phui): {formatNumber(log.excavationTodayM || 0)} m/ngày
+              <div className="mt-2.5 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 md:hidden">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-[11px] font-bold text-slate-800">
+                    Tóm tắt ngày {selectedDate.split('-').reverse().join('/')} ({filteredLogs.length})
+                  </h3>
+                  <a
+                    href="#daily-quantity-report"
+                    className="text-[10px] font-bold text-blue-600 underline"
+                  >
+                    Xem bảng chi tiết ↓
+                  </a>
+                </div>
+                {filteredLogs.map((log) => {
+                  const logProject = projectById.get(log.projectId);
+                  return (
+                    <div key={log.id} className="rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs shadow-2xs">
+                      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                        {logProject?.code && (
+                          <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-700 border border-blue-200">
+                            {logProject.code}
+                          </span>
+                        )}
+                        <span className="break-words text-[11px] font-extrabold text-blue-950">
+                          {log.projectName || logProject?.name || 'Dự án'}
+                        </span>
+                      </div>
+                      <p className="mb-1 break-words text-[11px] font-semibold text-slate-600">
+                        Nhà thầu: <span className="text-slate-900">{log.contractorName}</span>
                       </p>
-                    )}
-                  </div>
-                ))}
+                      <p className="break-words text-[11px] font-semibold text-emerald-800">
+                        {isStoppedLog(log)
+                          ? `Nghỉ: ${getStoppageReason(log) || 'chưa ghi lý do'}`
+                          : `Thi công: ${log.resources?.trim() || 'Chưa ghi nguồn lực'}`}
+                      </p>
+                      {!isStoppedLog(log) && (
+                        <p className="mt-0.5 font-mono text-[11px] text-slate-700">
+                          Đào phui: <strong>{formatNumber(log.excavationTodayM || 0)} m</strong> · Đổ bể: <strong>{formatNumber(log.chambersPouredToday || 0)} hầm</strong>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* 3. Daily Resource Summary Strip */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-slate-900">
+          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/90 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 border-b border-slate-100 pb-2.5 sm:pb-3 mb-2.5 sm:mb-3">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-xs sm:text-sm font-bold text-slate-900">
                   Chi Tiết Ngày: {selectedDate.split('-').reverse().join('/')}
                 </span>
-                <span className="text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-md">
+                <span className="text-[11px] sm:text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-md">
                   {filteredLogs.length} nhật ký
                 </span>
                 {violationsCountToday > 0 && (
-                  <span className="text-xs bg-red-600 text-white font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>{violationsCountToday} Biên bản vi phạm thiết kế (Có ảnh)</span>
+                  <span className="text-[11px] sm:text-xs bg-red-600 text-white font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                    <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span>{violationsCountToday} Vi phạm (Có ảnh)</span>
                   </span>
                 )}
               </div>
 
-              <div className="text-xs text-slate-600 flex items-center gap-3">
+              <div className="text-[11px] sm:text-xs text-slate-600 flex items-center gap-2 sm:gap-3">
                 <span className="font-semibold text-slate-900">
-                  Lực lượng huy động:{' '}
-                  <strong className="text-blue-600 font-mono text-sm">{totalActiveTeams} đội làm việc</strong>
+                  Huy động:{' '}
+                  <strong className="text-blue-600 font-mono text-xs sm:text-sm">{totalActiveTeams} đội làm việc</strong>
                 </span>
                 {stoppedTeams > 0 && (
                   <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
@@ -2597,30 +2667,39 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-slate-500">Phân loại đội thi công:</span>
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-800 font-medium">
-                {formatNumber(trenchTeams)} đội đào phui hở
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
+              <span className="col-span-2 sm:col-span-1 text-slate-500 text-[10px] sm:text-xs">Phân loại đội & sản lượng:</span>
+              <span className="bg-slate-100 px-2 sm:px-2.5 py-1 rounded-lg text-slate-800 font-medium">
+                Đào phui: <strong>{formatNumber(trenchTeams)} đội</strong>
               </span>
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-800 font-medium">
-                {formatNumber(drillingTeams)} đội khoan ngầm HDD
+              <span className="bg-slate-100 px-2 sm:px-2.5 py-1 rounded-lg text-slate-800 font-medium">
+                Khoan HDD: <strong>{formatNumber(drillingTeams)} đội</strong>
               </span>
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-800 font-medium">
-                Mét đào hôm nay: <strong className="font-mono">{formatNumber(totalExcavation)}m</strong>
+              <span className="bg-slate-100 px-2 sm:px-2.5 py-1 rounded-lg text-slate-800 font-medium">
+                Mét đào: <strong className="font-mono text-blue-700">{formatNumber(totalExcavation)}m</strong>
               </span>
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-800 font-medium">
-                Đổ hố ga hôm nay: <strong className="font-mono">{formatNumber(totalChambersToday)} bể</strong>
+              <span className="bg-slate-100 px-2 sm:px-2.5 py-1 rounded-lg text-slate-800 font-medium">
+                Đổ hố ga: <strong className="font-mono text-emerald-700">{formatNumber(totalChambersToday)} bể</strong>
               </span>
             </div>
           </div>
 
           {/* Báo cáo khối lượng thi công */}
           <div id="daily-quantity-report" className="scroll-mt-4 bg-white rounded-2xl border border-slate-300 shadow-xs overflow-hidden">
-            <div className="text-center py-4 px-6 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50">
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 uppercase tracking-tight">
+            <div className="text-center py-3 px-4 sm:py-4 sm:px-6 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50">
+              <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">
                 Báo Cáo Khối Lượng Thi Công
               </h2>
-              <div className="mt-1 inline-block bg-yellow-300 text-slate-900 font-bold text-sm sm:text-base px-6 py-0.5 rounded-sm shadow-xs border border-yellow-400">
+              {currentProject ? (
+                <p className="mt-0.5 break-words text-xs font-bold text-blue-800 sm:text-sm">
+                  {currentProject.code} — {currentProject.name}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                  Tất cả dự án ngầm hóa ({projects.length} dự án)
+                </p>
+              )}
+              <div className="mt-1.5 inline-block bg-yellow-300 text-slate-900 font-bold text-xs sm:text-base px-4 sm:px-6 py-0.5 rounded-sm shadow-xs border border-yellow-400">
                 Ngày {selectedDate.split('-').reverse().join('/')}
               </div>
             </div>
@@ -2635,22 +2714,47 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                     : 'Chưa có nhật ký cho ngày này.'}
                 </div>
               ) : (
-                filteredLogs.map((row) => {
+                filteredLogs.map((row, idx) => {
+                  const rowProject = projectById.get(row.projectId);
                   const trenchPercent = row.contractTrenchM > 0
                     ? ((row.cumulativeTrenchM / row.contractTrenchM) * 100).toFixed(1)
                     : '0.0';
                   const violation = row.violationReport;
-                  const violationPhotoUrls = getViolationPhotoUrls(violation);
                   const dailyPhotoUrls = getDailyLogPhotoUrls(row);
 
                   return (
-                    <article key={row.id} className="space-y-3 px-4 py-4">
-                      <div className="min-w-0">
-                        <h3 className="break-words text-sm font-bold text-slate-900">{row.contractorName}</h3>
-                        <p className="mt-0.5 break-words text-[11px] text-slate-500">{row.projectName}</p>
+                    <article key={row.id} className="space-y-2.5 px-3 py-3">
+                      {/* Prominent Project Header on Mobile */}
+                      <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-2.5 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="rounded bg-blue-700 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+                              #{idx + 1}
+                            </span>
+                            {rowProject?.code && (
+                              <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-800 border border-blue-200">
+                                {rowProject.code}
+                              </span>
+                            )}
+                            {rowProject && (
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                {planTypes.find((type) => type.id === rowProject.planTypeId)?.name || 'Chưa phân loại'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-mono text-[11px] font-extrabold text-blue-700">
+                            {trenchPercent}% HĐ
+                          </span>
+                        </div>
+                        <p className="mt-1 break-words text-xs font-extrabold leading-snug text-slate-900">
+                          Dự án: {row.projectName || rowProject?.name || 'Chưa rõ tên dự án'}
+                        </p>
+                        <p className="mt-0.5 break-words text-[11px] font-bold text-slate-700">
+                          Nhà thầu: <span className="text-blue-900">{row.contractorName}</span>
+                        </p>
                       </div>
 
-                      <p className="break-words rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      <p className="break-words rounded-lg bg-slate-50 border border-slate-200/70 px-2.5 py-1.5 text-[11px] font-medium text-slate-800">
                         {getResourceDescription(row)}
                       </p>
 
@@ -2659,14 +2763,14 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                           <p className="mb-1 text-[10px] font-semibold text-slate-600">
                             Ảnh báo cáo thi công ({dailyPhotoUrls.length})
                           </p>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-1.5">
                             {dailyPhotoUrls.map((photoUrl, photoIndex) => (
                               <button
                                 key={`${photoUrl}-${photoIndex}`}
                                 type="button"
                                 onClick={() => setExpandedViolationPhoto(photoUrl)}
                                 aria-label={`Mở ảnh báo cáo ${photoIndex + 1} toàn màn hình`}
-                                className="h-16 w-20 overflow-hidden rounded-lg border border-blue-200 bg-slate-900"
+                                className="h-14 w-18 overflow-hidden rounded-lg border border-blue-200 bg-slate-900"
                               >
                                 <ViolationPhotoImage
                                   src={photoUrl}
@@ -2679,25 +2783,24 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         </div>
                       )}
 
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 pt-3 text-xs">
-                        <div>
-                          <dt className="text-[10px] text-slate-500">Đào phui trong ngày</dt>
-                          <dd className="mt-0.5 font-mono font-bold text-slate-900">{formatNumber(row.excavationTodayM)} m</dd>
+                      <dl className="grid grid-cols-2 gap-1.5 text-xs">
+                        <div className="rounded-lg bg-slate-50 px-2.5 py-1.5 border border-slate-100">
+                          <dt className="text-[10px] text-slate-500">Đào phui ngày</dt>
+                          <dd className="mt-0.5 font-mono text-xs font-bold text-slate-900">{formatNumber(row.excavationTodayM)} m</dd>
                         </div>
-                        <div>
-                          <dt className="text-[10px] text-slate-500">Đổ hố ga trong ngày</dt>
-                          <dd className="mt-0.5 font-mono font-bold text-slate-900">{formatNumber(row.chambersPouredToday)} hầm</dd>
+                        <div className="rounded-lg bg-slate-50 px-2.5 py-1.5 border border-slate-100">
+                          <dt className="text-[10px] text-slate-500">Đổ hố ga ngày</dt>
+                          <dd className="mt-0.5 font-mono text-xs font-bold text-slate-900">{formatNumber(row.chambersPouredToday)} hầm</dd>
                         </div>
-                        <div>
+                        <div className="rounded-lg bg-blue-50/50 px-2.5 py-1.5 border border-blue-100/80">
                           <dt className="text-[10px] text-slate-500">Lũy kế mương cáp</dt>
-                          <dd className="mt-0.5 font-mono font-bold text-blue-700">
+                          <dd className="mt-0.5 font-mono text-xs font-bold text-blue-700">
                             {formatNumber(row.cumulativeTrenchM)} / {formatNumber(row.contractTrenchM)} m
                           </dd>
-                          <dd className="text-[10px] text-slate-500">{trenchPercent}% hợp đồng</dd>
                         </div>
-                        <div>
+                        <div className="rounded-lg bg-emerald-50/50 px-2.5 py-1.5 border border-emerald-100/80">
                           <dt className="text-[10px] text-slate-500">Lũy kế hố ga</dt>
-                          <dd className="mt-0.5 font-mono font-bold text-emerald-700">
+                          <dd className="mt-0.5 font-mono text-xs font-bold text-emerald-700">
                             {formatNumber(row.cumulativeChambers)} / {formatNumber(row.contractChambers)} hầm
                           </dd>
                         </div>
@@ -2707,9 +2810,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedViolationDetail(violation)}
-                          className="flex w-full items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-xs font-semibold text-red-800"
+                          className="flex w-full items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-left text-[11px] font-semibold text-red-800"
                         >
-                          <Camera className="h-4 w-4 shrink-0" />
+                          <Camera className="h-3.5 w-3.5 shrink-0" />
                           <span className="min-w-0 break-words">{violation.code}: {violation.violationTypeLabel}</span>
                         </button>
                       )}
@@ -2720,22 +2823,22 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                         </p>
                       )}
 
-                      <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2">
+                      <div className="flex items-center justify-end gap-2 pt-1">
                         {isAdmin ? (
                           <>
                             <button
                               type="button"
                               onClick={() => onEditLog(row)}
-                              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700"
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
                             >
-                              <Edit3 className="h-4 w-4" /> Sửa
+                              <Edit3 className="h-3.5 w-3.5" /> Sửa
                             </button>
                             <button
                               type="button"
                               onClick={() => onDeleteLog(row.id)}
-                              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-700"
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-red-200 px-2.5 text-[11px] font-semibold text-red-700 hover:bg-red-50"
                             >
-                              <Trash2 className="h-4 w-4" /> Xóa
+                              <Trash2 className="h-3.5 w-3.5" /> Xóa
                             </button>
                           </>
                         ) : (

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { LocateFixed, Search } from 'lucide-react';
+import { LocateFixed, Maximize2, Minimize2, Search } from 'lucide-react';
 import { ProjectContractor, RouteCoordinatePoint } from '../types/undergrounding';
 
 type EndpointMode = 'start' | 'end';
@@ -11,9 +11,11 @@ interface ProjectContractorRoutePickerProps {
   startPointId: string;
   endPointId: string;
   endpointMode: EndpointMode;
+  onEndpointModeChange?: (mode: EndpointMode) => void;
   lockedStartPointId?: string;
   onSelectPoint: (pointId: string) => void;
   onInsertPoint: (afterIndex: number, lat: number, lng: number) => void;
+  isFullHeight?: boolean;
 }
 
 export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePickerProps> = ({
@@ -22,16 +24,21 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
   startPointId,
   endPointId,
   endpointMode,
+  onEndpointModeChange,
   lockedStartPointId,
   onSelectPoint,
   onInsertPoint,
+  isFullHeight = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const focusedPointIdRef = useRef<string | null>(null);
+  const hasFittedBoundsRef = useRef(false);
   const pointsRef = useRef(points);
   const [pointQuery, setPointQuery] = useState('');
+  const [isMaximized, setIsMaximized] = useState(false);
+
   const selectionRef = useRef({
     onSelectPoint,
     onInsertPoint,
@@ -49,19 +56,37 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
   };
 
   const matchingPoints = pointQuery.trim()
-    ? points.filter((point) =>
-        (point.name || '').toLocaleLowerCase('vi').includes(pointQuery.trim().toLocaleLowerCase('vi'))
-      ).slice(0, 8)
+    ? points
+        .filter((point) =>
+          (point.name || '')
+            .toLocaleLowerCase('vi')
+            .includes(pointQuery.trim().toLocaleLowerCase('vi'))
+        )
+        .slice(0, 6)
     : [];
 
   const focusPoint = (point: RouteCoordinatePoint) => {
     focusedPointIdRef.current = point.id;
-    mapRef.current?.flyTo([point.lat, point.lng], 17, { duration: 0.6 });
+    mapRef.current?.flyTo([point.lat, point.lng], 17, { duration: 0.5 });
   };
 
   const focusAndSelectPoint = (point: RouteCoordinatePoint) => {
     focusPoint(point);
     onSelectPoint(point.id);
+    setPointQuery('');
+  };
+
+  const fitFullRoute = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const validCoords = points
+      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+      .map((point) => [point.lat, point.lng] as [number, number]);
+    if (validCoords.length > 1) {
+      map.fitBounds(L.latLngBounds(validCoords), { padding: [28, 28], maxZoom: 17 });
+    } else if (validCoords.length === 1) {
+      map.setView(validCoords[0], 16);
+    }
   };
 
   useEffect(() => {
@@ -76,7 +101,8 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
     L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
       {
-        attribution: 'Tiles &copy; Esri, TomTom, Garmin, FAO, NOAA, USGS, &copy; OpenStreetMap contributors',
+        attribution:
+          'Tiles &copy; Esri, TomTom, Garmin, FAO, NOAA, USGS, &copy; OpenStreetMap contributors',
         maxZoom: 19,
       }
     ).addTo(map);
@@ -85,8 +111,11 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
     map.on('click', (event: L.LeafletMouseEvent) => {
       const routePoints = pointsRef.current;
       if (routePoints.length < 2) return;
-      const { endpointMode: currentMode, lockedStartPointId: lockedStart, startPointId: selectedStart } =
-        selectionRef.current;
+      const {
+        endpointMode: currentMode,
+        lockedStartPointId: lockedStart,
+        startPointId: selectedStart,
+      } = selectionRef.current;
       if (currentMode === 'start' && lockedStart) return;
       if (currentMode === 'end' && !selectedStart) return;
 
@@ -108,7 +137,7 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
           nearestVertexIndex = index;
         }
       });
-      if (nearestVertexDistance <= 18 && nearestVertexIndex >= 0) {
+      if (nearestVertexDistance <= 20 && nearestVertexIndex >= 0) {
         selectionRef.current.onSelectPoint(routePoints[nearestVertexIndex].id);
         return;
       }
@@ -128,7 +157,10 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
         if (lengthSquared === 0) continue;
         const ratio = Math.max(
           0,
-          Math.min(1, ((clickPoint.x - from.x) * dx + (clickPoint.y - from.y) * dy) / lengthSquared)
+          Math.min(
+            1,
+            ((clickPoint.x - from.x) * dx + (clickPoint.y - from.y) * dy) / lengthSquared
+          )
         );
         const snappedPoint = L.point(from.x + ratio * dx, from.y + ratio * dy);
         const distance = snappedPoint.distanceTo(clickPoint);
@@ -139,11 +171,8 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
         }
       }
 
-      if (
-        nearestSegmentIndex < 0 ||
-        nearestSegmentDistance > 28 ||
-        !nearestSegmentPoint
-      ) return;
+      if (nearestSegmentIndex < 0 || nearestSegmentDistance > 30 || !nearestSegmentPoint)
+        return;
 
       const snappedLatLng = map.layerPointToLatLng(nearestSegmentPoint);
       selectionRef.current.onInsertPoint(
@@ -161,6 +190,13 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       layerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      mapRef.current?.invalidateSize({ pan: false });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [isMaximized]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -198,14 +234,18 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       const contractorCoordinates = validPoints
         .slice(contractorStartIndex, contractorEndIndex + 1)
         .map((point) => [point.lat, point.lng] as [number, number]);
-      const safeName = contractor.name.replace(/[&<>"']/g, (character) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;',
-      })[character] || character);
-      const line = L.polyline(contractorCoordinates, {
+      const safeName = contractor.name.replace(
+        /[&<>"']/g,
+        (character) =>
+          ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+          })[character] || character
+      );
+      L.polyline(contractorCoordinates, {
         color: contractor.color,
         weight: 7,
         opacity: 0.9,
@@ -239,9 +279,9 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       const isStart = point.id === startPointId;
       const isEnd = point.id === endPointId;
       const marker = L.circleMarker([point.lat, point.lng], {
-        radius: isStart || isEnd ? 8 : 5,
+        radius: isStart || isEnd ? 9 : 6,
         color: '#ffffff',
-        weight: 2,
+        weight: 2.5,
         fillColor: isStart ? '#16a34a' : isEnd ? '#e11d48' : '#475569',
         fillOpacity: 1,
       });
@@ -253,73 +293,167 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       marker.addTo(layers);
     });
 
-    const focusedPoint = validPoints.find((point) => point.id === focusedPointIdRef.current);
+    const focusedPoint = validPoints.find(
+      (point) => point.id === focusedPointIdRef.current
+    );
     if (focusedPoint) {
       map.setView([focusedPoint.lat, focusedPoint.lng], 17);
       focusedPointIdRef.current = null;
-    } else if (coordinates.length > 1) {
-      map.fitBounds(L.latLngBounds(coordinates), { padding: [24, 24], maxZoom: 16 });
-    } else if (coordinates.length === 1) {
-      map.setView(coordinates[0], 16);
+    } else if (!hasFittedBoundsRef.current) {
+      hasFittedBoundsRef.current = true;
+      if (coordinates.length > 1) {
+        map.fitBounds(L.latLngBounds(coordinates), { padding: [28, 28], maxZoom: 16 });
+      } else if (coordinates.length === 1) {
+        map.setView(coordinates[0], 16);
+      }
     }
-    map.invalidateSize();
+    map.invalidateSize({ pan: false });
   }, [points, contractors, startPointId, endPointId]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200">
-      <div className="space-y-2 border-b border-slate-200 bg-white p-2.5">
-        <label className="relative block">
-          <span className="sr-only">Tìm mốc tuyến theo tên</span>
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={pointQuery}
-            onChange={(event) => setPointQuery(event.target.value)}
-            placeholder="Tìm điểm đầu, điểm cuối hoặc mốc trên tuyến..."
-            className="w-full rounded-lg border border-slate-300 bg-slate-50 py-2 pl-8 pr-2.5 text-xs text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-        </label>
+    <div
+      className={`flex flex-col overflow-hidden bg-white ${
+        isMaximized
+          ? 'fixed inset-0 z-[120] h-dvh w-screen'
+          : isFullHeight
+          ? 'h-full flex-1 min-h-0 rounded-xl border border-slate-200'
+          : 'rounded-xl border border-slate-200'
+      }`}
+    >
+      {/* Compact Single-Header Toolbar */}
+      <div className="flex flex-col gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          {onEndpointModeChange && (
+            <div className="flex items-center gap-1" role="group" aria-label="Chọn loại mốc tuyến">
+              {(
+                [
+                  ['start', '1. Điểm đầu', !!startPointId],
+                  ['end', '2. Điểm cuối', !!endPointId],
+                ] as const
+              ).map(([mode, label, hasValue]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onEndpointModeChange(mode)}
+                  aria-pressed={endpointMode === mode}
+                  disabled={
+                    (mode === 'start' && !!lockedStartPointId) ||
+                    (mode === 'end' && !startPointId)
+                  }
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    endpointMode === mode
+                      ? mode === 'start'
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-rose-600 bg-rose-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{label}</span>
+                  <span
+                    className={`rounded-full px-1 text-[9px] ${
+                      endpointMode === mode ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {hasValue ? '✓' : '—'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex min-w-0 flex-1 items-center gap-1 sm:max-w-xs">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Tìm mốc tuyến theo tên</span>
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={pointQuery}
+                onChange={(event) => setPointQuery(event.target.value)}
+                placeholder="Tìm mốc trên tuyến..."
+                className="w-full rounded-lg border border-slate-300 bg-white py-1 pl-7 pr-2 text-xs text-slate-800 outline-none focus:border-blue-500"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={fitFullRoute}
+              title="Thu phóng vừa toàn tuyến"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <LocateFixed className="h-3.5 w-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Toàn tuyến</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsMaximized((prev) => !prev)}
+              title={isMaximized ? 'Thu nhỏ bản đồ' : 'Mở rộng bản đồ toàn màn hình'}
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 text-[10px] font-bold text-blue-700 hover:bg-blue-100"
+            >
+              {isMaximized ? (
+                <>
+                  <Minimize2 className="h-3.5 w-3.5" />
+                  <span>Thu gọn</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Phóng to</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
         {pointQuery.trim() && (
-          <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200">
-            {matchingPoints.length > 0 ? matchingPoints.map((point, index) => (
-              <div
-                key={point.id}
-                className="flex items-center gap-2 border-b border-slate-100 px-2.5 py-2 last:border-b-0"
-              >
-                <span className="min-w-0 flex-1 text-[11px] text-slate-700">
-                  {index + 1}. {point.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => focusPoint(point)}
-                  className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+          <div className="max-h-28 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+            {matchingPoints.length > 0 ? (
+              matchingPoints.map((point, index) => (
+                <div
+                  key={point.id}
+                  className="flex items-center gap-2 border-b border-slate-100 px-2.5 py-1.5 last:border-b-0"
                 >
-                  <LocateFixed className="h-3 w-3" />
-                  Tới mốc
-                </button>
-                <button
-                  type="button"
-                  onClick={() => focusAndSelectPoint(point)}
-                  className="min-h-7 shrink-0 rounded-md bg-blue-700 px-2 text-[10px] font-bold text-white hover:bg-blue-800"
-                >
-                  Chọn
-                </button>
-              </div>
-            )) : (
-              <p className="px-2.5 py-2 text-[11px] text-slate-500">Không tìm thấy mốc tuyến phù hợp.</p>
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-slate-700">
+                    {index + 1}. {point.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => focusPoint(point)}
+                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded border border-slate-200 px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <LocateFixed className="h-3 w-3" />
+                    Tới mốc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => focusAndSelectPoint(point)}
+                    className="h-6 shrink-0 rounded bg-blue-700 px-2 text-[10px] font-bold text-white hover:bg-blue-800"
+                  >
+                    Chọn
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="px-2.5 py-1.5 text-[11px] text-slate-500">
+                Không tìm thấy mốc tuyến phù hợp.
+              </p>
             )}
           </div>
         )}
       </div>
-      <div className="h-52 w-full bg-slate-100 sm:h-60">
-        <div ref={containerRef} className="h-full w-full" />
+
+      {/* Large Map Canvas */}
+      <div
+        className={`relative w-full bg-slate-100 ${
+          isMaximized || isFullHeight
+            ? 'flex-1 min-h-[340px]'
+            : 'h-[360px] sm:h-[460px]'
+        }`}
+      >
+        <div ref={containerRef} className="absolute inset-0 h-full w-full" />
       </div>
-      <p className="border-t border-slate-200 bg-white px-2.5 py-2 text-[10px] leading-relaxed text-slate-500">
-        Chạm mốc hoặc tuyến tổng để chọn điểm đầu, sau đó chọn điểm cuối. Đoạn màu xanh bám theo các điểm và khúc cua của tuyến tổng.
-      </p>
+
       <span className="sr-only" aria-live="polite">
         {startPointId && endPointId
-          ? 'Đã chọn đủ hai điểm. Chạm lại để chọn một đoạn tuyến khác.'
+          ? 'Đã chọn đủ hai điểm.'
           : `Đang chọn ${endpointMode === 'start' ? 'điểm đầu' : 'điểm cuối'} đoạn tuyến`}
       </span>
     </div>

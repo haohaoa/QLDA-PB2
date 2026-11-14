@@ -9,15 +9,16 @@ import {
   FileText,
   FileCheck,
   ShieldAlert,
-  PlusCircle,
-  Filter,
+  Plus,
   CheckCircle2,
+  RotateCcw,
   Trash2,
-  Calendar,
   User,
   ArrowRight,
-  ExternalLink,
   Info,
+  Pencil,
+  Search,
+  Lock,
   X,
 } from 'lucide-react';
 
@@ -46,6 +47,9 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(filterInitialProjectId);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'closed'>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [editingBulletin, setEditingBulletin] = useState<SiteBulletin | null>(null);
 
@@ -59,11 +63,31 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
   const [documentRefNumber, setDocumentRefNumber] = useState('');
   const [severity, setSeverity] = useState<SiteBulletin['severity']>('warning');
 
+  const activeCount = bulletins.filter((b) => b.isActive).length;
+  const criticalCount = bulletins.filter(
+    (b) => b.isActive && (b.severity === 'critical' || b.category === 'temporary_stop')
+  ).length;
+
   // Filtered bulletins
   const filteredBulletins = bulletins.filter((b) => {
     if (selectedCategory !== 'all' && b.category !== selectedCategory) return false;
-    if (selectedProjectId !== 'all' && b.projectId !== 'all' && b.projectId !== selectedProjectId)
+    if (
+      selectedProjectId !== 'all' &&
+      b.projectId !== 'all' &&
+      b.projectId !== selectedProjectId
+    ) {
       return false;
+    }
+    if (statusFilter === 'active' && !b.isActive) return false;
+    if (statusFilter === 'closed' && b.isActive) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLocaleLowerCase('vi');
+      const matchTitle = b.title.toLocaleLowerCase('vi').includes(q);
+      const matchContent = b.content.toLocaleLowerCase('vi').includes(q);
+      const matchDoc = (b.documentRefNumber || '').toLocaleLowerCase('vi').includes(q);
+      const matchProj = (b.projectName || '').toLocaleLowerCase('vi').includes(q);
+      if (!matchTitle && !matchContent && !matchDoc && !matchProj) return false;
+    }
     return true;
   });
 
@@ -105,13 +129,13 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
     if (editingBulletin) {
       const updated: SiteBulletin = {
         ...editingBulletin,
-        title,
+        title: title.trim(),
         category,
         projectId: formProjectId,
         projectName: projName,
-        author,
+        author: author.trim() || 'Kỹ sư Giám sát',
         date,
-        content,
+        content: content.trim(),
         documentRefNumber: documentRefNumber.trim() || undefined,
         severity,
       };
@@ -119,13 +143,13 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
     } else {
       const newBulletin: SiteBulletin = {
         id: `blt-${Date.now()}`,
-        title,
+        title: title.trim(),
         category,
         projectId: formProjectId,
         projectName: projName,
-        author,
+        author: author.trim() || 'Kỹ sư Giám sát',
         date,
-        content,
+        content: content.trim(),
         documentRefNumber: documentRefNumber.trim() || undefined,
         severity,
         isActive: true,
@@ -143,118 +167,206 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
   const getCategoryLabel = (cat: SiteBulletin['category']) => {
     switch (cat) {
       case 'weather':
-        return { label: 'Cảnh báo mưa bão', icon: CloudRain, color: 'text-amber-700 bg-amber-50 border-amber-200' };
+        return {
+          label: 'Mưa bão',
+          fullLabel: 'Cảnh báo mưa bão',
+          icon: CloudRain,
+          color: 'text-amber-700 bg-amber-50 border-amber-200/80',
+        };
       case 'permit_legal':
-        return { label: 'Hồ sơ pháp lý / Giấy phép', icon: FileCheck, color: 'text-blue-700 bg-blue-50 border-blue-200' };
+        return {
+          label: 'Pháp lý / GP',
+          fullLabel: 'Hồ sơ pháp lý / Giấy phép',
+          icon: FileCheck,
+          color: 'text-blue-700 bg-blue-50 border-blue-200/80',
+        };
       case 'temporary_stop':
-        return { label: 'Tạm dừng thi công', icon: ShieldAlert, color: 'text-red-700 bg-red-50 border-red-200' };
+        return {
+          label: 'Tạm dừng',
+          fullLabel: 'Tạm dừng thi công',
+          icon: ShieldAlert,
+          color: 'text-red-700 bg-red-50 border-red-200/80',
+        };
       case 'infrastructure_obstacle':
-        return { label: 'Vướng hạ tầng ngầm', icon: AlertTriangle, color: 'text-orange-700 bg-orange-50 border-orange-200' };
+        return {
+          label: 'Vướng hạ tầng',
+          fullLabel: 'Vướng hạ tầng ngầm',
+          icon: AlertTriangle,
+          color: 'text-orange-700 bg-orange-50 border-orange-200/80',
+        };
       case 'urgent':
       default:
-        return { label: 'Chỉ đạo khẩn cấp', icon: Bell, color: 'text-purple-700 bg-purple-50 border-purple-200' };
+        return {
+          label: 'Chỉ đạo khẩn',
+          fullLabel: 'Chỉ đạo khẩn cấp',
+          icon: Bell,
+          color: 'text-purple-700 bg-purple-50 border-purple-200/80',
+        };
     }
   };
 
+  const categoryTabs: Array<{ id: string; label: string }> = [
+    { id: 'all', label: 'Tất cả' },
+    { id: 'temporary_stop', label: '⛔ Tạm dừng' },
+    { id: 'permit_legal', label: '📄 Pháp lý / GP' },
+    { id: 'infrastructure_obstacle', label: '⚡ Vướng hạ tầng' },
+    { id: 'weather', label: '⛈ Mưa bão' },
+    { id: 'urgent', label: '🚨 Khẩn cấp' },
+  ];
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* 1. Header Toolbar */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-amber-600 mb-1">
-            <Bell className="w-4 h-4" />
-            <span>BẢNG TIN ĐIỀU HÀNH & HỒ SƠ PHÁP LÝ HIỆN TRƯỜNG</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Thông Báo Hiện Trường & Cảnh Báo Hồ Sơ Thi Công
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Kênh cập nhật tin tức dành cho Lãnh đạo, Kỹ sư giám sát & các Nhà thầu: hồ sơ xin phép Sở GTVT, lệnh cấm đào mưa bão, tạm dừng thi công...
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          {isAdmin ? (
-            <button
-              onClick={handleOpenCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-xs transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>+ Tạo Thông Báo / Cảnh Báo Mới (ADMIN)</span>
-            </button>
-          ) : (
-            <button
-              onClick={onOpenLogin}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold shadow-xs transition-all"
-            >
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span>🔐 Đăng nhập Admin để đăng thông báo</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Filter Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-            <Filter className="w-4 h-4" />
-            <span>Bộ lọc:</span>
+    <div className="space-y-2.5 sm:space-y-4 pb-8">
+      {/* Unified Management Header + KPI Strip + Filter Toolbar */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-2.5 sm:p-4 shadow-2xs space-y-2.5">
+        {/* Top Row: Title + KPI Badges + Primary Button */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <Bell className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h2 className="truncate text-sm sm:text-lg font-extrabold text-slate-900">
+                  Thông Báo & Hồ Sơ Hiện Trường
+                </h2>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.2 font-mono text-[10px] font-bold text-emerald-700">
+                  {activeCount} hiệu lực
+                </span>
+                {criticalCount > 0 && (
+                  <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.2 font-mono text-[10px] font-bold text-red-700">
+                    {criticalCount} khẩn/dừng
+                  </span>
+                )}
+              </div>
+              <p className="hidden sm:block text-[11px] text-slate-500">
+                Quản lý văn bản pháp lý Sở GTVT, lệnh tạm dừng thi công, vướng hạ tầng và chỉ đạo điều hành
+              </p>
+            </div>
           </div>
 
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-          >
-            <option value="all">★ Tất cả dự án ({bulletins.length} thông báo)</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+          <div className="shrink-0">
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className="inline-flex h-8 sm:h-9 items-center justify-center gap-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white shadow-2xs transition hover:bg-amber-700 active:scale-[0.98]"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Phát hành</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl bg-slate-800 px-3 text-xs font-bold text-white hover:bg-slate-700"
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-400" />
+                <span>Đăng nhập</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search + Project Select + Status Filter Row */}
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-12 sm:gap-2 pt-1 border-t border-slate-100">
+          <div className="relative sm:col-span-5">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm tiêu đề, số hiệu văn bản, dự án..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-2.5 text-xs text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 sm:col-span-7 sm:grid-cols-7">
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              aria-label="Lọc theo dự án"
+              className="col-span-1 sm:col-span-4 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+            >
+              <option value="all">Tất cả dự án ({bulletins.length})</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as 'all' | 'active' | 'closed')
+              }
+              aria-label="Lọc theo hiệu lực"
+              className="col-span-1 sm:col-span-3 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
+            >
+              <option value="all">Mọi trạng thái ({bulletins.length})</option>
+              <option value="active">● Đang hiệu lực ({activeCount})</option>
+              <option value="closed">
+                ✓ Đã đóng ({bulletins.length - activeCount})
               </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-1.5 text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
-          >
-            <option value="all">Tất cả danh mục thông báo</option>
-            <option value="temporary_stop">⛔ Tạm dừng thi công</option>
-            <option value="permit_legal">📄 Hồ sơ pháp lý / Giấy phép GTVT</option>
-            <option value="weather">⛈ Cảnh báo thời tiết mưa bão</option>
-            <option value="infrastructure_obstacle">⚡ Vướng hạ tầng ngầm khác</option>
-            <option value="urgent">🚨 Chỉ đạo khẩn cấp</option>
-          </select>
+            </select>
+          </div>
         </div>
 
-        <div className="text-xs text-slate-500 font-mono">
-          Hiển thị <strong>{filteredBulletins.length}</strong> / {bulletins.length} thông báo
+        {/* Single-Row Scrollable Category Pills */}
+        <div
+          className="flex items-center gap-1.5 overflow-x-auto no-scrollbar"
+          aria-label="Lọc theo danh mục thông báo"
+        >
+          {categoryTabs.map((tab) => {
+            const count =
+              tab.id === 'all'
+                ? bulletins.length
+                : bulletins.filter((b) => b.category === tab.id).length;
+            const isSelected = selectedCategory === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedCategory(tab.id)}
+                aria-pressed={isSelected}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                  isSelected
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {tab.label} ({count})
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 3. Bulletins Grid */}
-      <div className="space-y-4">
+      {/* High-Density Management Feed */}
+      <div className="space-y-2">
         {filteredBulletins.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-300">
-            <Info className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <h4 className="text-sm font-bold text-slate-700">Chưa có thông báo nào phù hợp với bộ lọc</h4>
-            <p className="text-xs text-slate-400 mt-1">
-              Bạn có thể nhấn vào nút <strong>+ Tạo Thông Báo / Cảnh Báo Mới</strong> để gửi tin tức đến công trường.
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <Info className="mx-auto mb-1.5 h-6 w-6 text-slate-400" />
+            <h4 className="text-xs font-bold text-slate-700">
+              Không có thông báo hoặc hồ sơ nào khớp bộ lọc
+            </h4>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Nhấn nút <strong>+ Phát hành</strong> trên góc phải để tạo thông báo mới.
             </p>
           </div>
         ) : (
           filteredBulletins.map((b) => {
             const catInfo = getCategoryLabel(b.category);
             const Icon = catInfo.icon;
+            const isExpanded = !!expandedIds[b.id];
+            const isLongContent = b.content.length > 140;
 
             return (
-              <div
+              <article
                 key={b.id}
-                className={`bg-white rounded-2xl p-5 border transition-all shadow-xs ${
+                className={`rounded-xl border bg-white p-2.5 sm:p-3.5 shadow-2xs transition-all ${
                   !b.isActive
-                    ? 'opacity-60 bg-slate-50/80 border-slate-200'
+                    ? 'border-l-4 border-l-slate-300 border-slate-200 bg-slate-50/70 opacity-75'
                     : b.severity === 'critical'
                     ? 'border-l-4 border-l-red-600 border-slate-200'
                     : b.severity === 'warning'
@@ -262,296 +374,326 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
                     : 'border-l-4 border-l-blue-600 border-slate-200'
                 }`}
               >
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    {/* Tags row */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-lg border flex items-center gap-1.5 ${catInfo.color}`}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        {catInfo.label}
-                      </span>
+                {/* Row 1: Badges + Date + Quick Action Buttons */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${catInfo.color}`}
+                    >
+                      <Icon className="h-3 w-3 shrink-0" />
+                      <span>{catInfo.label}</span>
+                    </span>
 
-                      <span
-                        className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${
-                          b.severity === 'critical'
-                            ? 'bg-red-600 text-white'
-                            : b.severity === 'warning'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-blue-600 text-white'
-                        }`}
-                      >
-                        {b.severity === 'critical'
-                          ? 'Mức độ: Khẩn cấp'
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                        b.severity === 'critical'
+                          ? 'bg-red-600 text-white'
                           : b.severity === 'warning'
-                          ? 'Mức độ: Cảnh báo'
-                          : 'Mức độ: Thông báo'}
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-blue-600 text-white'
+                      }`}
+                    >
+                      {b.severity === 'critical'
+                        ? 'Khẩn'
+                        : b.severity === 'warning'
+                        ? 'Cảnh báo'
+                        : 'Tin'}
+                    </span>
+
+                    {b.documentRefNumber && (
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-900">
+                        <FileText className="h-2.5 w-2.5 text-amber-700" />
+                        {b.documentRefNumber}
                       </span>
+                    )}
 
-                      {b.isActive ? (
-                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          ● Đang hiệu lực
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                          ✓ Đã giải quyết / Đóng hồ sơ
-                        </span>
-                      )}
-
-                      <span className="text-xs text-slate-400 font-mono ml-auto">
-                        Ngày {b.date.split('-').reverse().join('/')}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
-                      {b.title}
-                    </h3>
-
-                    {/* Metadata strip: Project & Document Reference */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-0.5">
-                      <span className="flex items-center gap-1">
-                        <strong>Dự án áp dụng:</strong>{' '}
-                        <span className="text-blue-700 font-semibold">{b.projectName}</span>
-                      </span>
-
-                      {b.documentRefNumber && (
-                        <span className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/70 px-2 py-0.5 rounded font-mono font-medium">
-                          <FileText className="w-3.5 h-3.5 text-amber-700" />
-                          {b.documentRefNumber}
-                        </span>
-                      )}
-
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <User className="w-3.5 h-3.5" />
-                        Người lập: {b.author}
-                      </span>
-                    </div>
-
-                    {/* Content */}
-                    <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-800 leading-relaxed whitespace-pre-line mt-2">
-                      {b.content}
-                    </div>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
+                        b.isActive
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {b.isActive ? '● Hiệu lực' : '✓ Đã đóng'}
+                    </span>
                   </div>
 
-                  {/* Actions column */}
-                  <div className="flex md:flex-col items-center gap-2 self-start shrink-0">
+                  {/* Right Side: Date & Compact Action Bar */}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="font-mono text-[10px] font-semibold text-slate-400">
+                      {b.date.split('-').reverse().join('/')}
+                    </span>
+
                     {b.projectId !== 'all' && (
                       <button
+                        type="button"
                         onClick={() => onSelectProjectDetail(b.projectId)}
-                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs whitespace-nowrap"
-                        title="Xem báo cáo chi tiết của dự án này"
+                        title="Mở báo cáo chi tiết dự án"
+                        className="inline-flex h-6 items-center gap-0.5 rounded-lg bg-slate-900 px-2 text-[10px] font-bold text-white hover:bg-slate-800"
                       >
-                        <span>Xem dự án</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Dự án</span>
+                        <ArrowRight className="h-3 w-3" />
                       </button>
                     )}
 
                     {isAdmin && (
                       <>
                         <button
+                          type="button"
                           onClick={() => handleToggleActive(b)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-200 whitespace-nowrap"
+                          title={b.isActive ? 'Đóng thông báo' : 'Mở lại thông báo'}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
                         >
-                          {b.isActive ? 'Đóng thông báo' : 'Mở lại'}
+                          {b.isActive ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+                          )}
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => handleOpenEdit(b)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-200 whitespace-nowrap"
+                          title="Sửa thông báo"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
                         >
-                          Sửa
+                          <Pencil className="h-3 w-3" />
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => onDeleteBulletin(b.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           title="Xóa thông báo"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </>
                     )}
                   </div>
                 </div>
-              </div>
+
+                {/* Row 2: Project Pill + Title */}
+                <div className="mt-1.5 flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+                  <span className="inline-block w-fit shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 border border-blue-100">
+                    {b.projectName}
+                  </span>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                    {b.title}
+                  </h3>
+                </div>
+
+                {/* Row 3: Compact Content & Author */}
+                <div className="mt-1.5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`text-[11px] sm:text-xs text-slate-600 leading-relaxed whitespace-pre-line ${
+                        !isExpanded && isLongContent ? 'line-clamp-2' : ''
+                      }`}
+                    >
+                      {b.content}
+                    </p>
+                    {isLongContent && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedIds((prev) => ({ ...prev, [b.id]: !prev[b.id] }))
+                        }
+                        className="mt-0.5 text-[10px] font-bold text-blue-600 hover:underline"
+                      >
+                        {isExpanded ? 'Thu gọn' : 'Xem đầy đủ...'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1 text-[10px] text-slate-400">
+                    <User className="h-3 w-3" />
+                    <span>{b.author}</span>
+                  </div>
+                </div>
+              </article>
             );
           })
         )}
       </div>
 
-      {/* 4. Create / Edit Bulletin Modal */}
-      {showCreateModal && (
+      {/* Create / Edit Bulletin Modal */}
+      {showCreateModal &&
         createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:p-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                  <Bell className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg text-slate-900">
-                    {editingBulletin ? 'Cập Nhật Thông Báo Hiện Trường' : 'Tạo Thông Báo / Cảnh Báo Hồ Sơ Mới'}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Giám sát cập nhật tin tức hàng ngày (ví dụ: tạm ngưng dự án vì làm hồ sơ xin phép thi công)
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Tiêu Đề Thông Báo / Cảnh Báo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: Tạm ngưng đào phui nút giao Triệu Nữ Vương vì đang làm hồ sơ xin phép thi công Sở GTVT"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Dự Án Áp Dụng <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formProjectId}
-                    onChange={(e) => setFormProjectId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  >
-                    <option value="all">★ Toàn hệ thống (Tất cả dự án)</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-xs">
+            <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                    <Bell className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 sm:text-base">
+                      {editingBulletin
+                        ? 'Cập Nhật Thông Báo Hiện Trường'
+                        : 'Phát Hành Thông Báo / Hồ Sơ Mới'}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Cập nhật lệnh tạm dừng, giấy phép thi công hoặc cảnh báo hiện trường
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Phân Loại Tin Tức <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as SiteBulletin['category'])}
-                    className="w-full px-3 py-2 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  >
-                    <option value="temporary_stop">⛔ Tạm dừng thi công</option>
-                    <option value="permit_legal">📄 Hồ sơ pháp lý / Giấy phép GTVT</option>
-                    <option value="weather">⛈ Cảnh báo thời tiết mưa bão</option>
-                    <option value="infrastructure_obstacle">⚡ Vướng hạ tầng ngầm khác</option>
-                    <option value="urgent">🚨 Chỉ đạo khẩn cấp từ CĐT</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Mã / Số Hiệu Hồ Sơ (Nếu có)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="VD: GP-0894/2026/SGTVT"
-                    value={documentRefNumber}
-                    onChange={(e) => setDocumentRefNumber(e.target.value)}
-                    className="w-full px-3 py-2 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Mức Độ Cảnh Báo
-                  </label>
-                  <select
-                    value={severity}
-                    onChange={(e) => setSeverity(e.target.value as SiteBulletin['severity'])}
-                    className="w-full px-3 py-2 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  >
-                    <option value="warning">⚠️ Cảnh báo tiến độ / hiện trường</option>
-                    <option value="critical">🚨 Khẩn cấp (Dừng thi công)</option>
-                    <option value="info">ℹ️ Thông báo nghiệp vụ</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Ngày Ban Hành
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Người Lập / Chức Danh
-                </label>
-                <input
-                  type="text"
-                  placeholder="VD: KS. Nguyễn Văn Hùng (Giám sát A)"
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Nội Dung Chi Tiết Thông Báo & Phương Án Xử Lý <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="Ghi rõ lý do tạm ngưng, thời gian dự kiến mở lại, các mũi khoan hoặc đội hoàn trả có tiếp tục làm việc không..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition-all"
-                >
-                  {editingBulletin ? 'Cập Nhật Thông Báo' : 'Đăng Thông Báo Lên Hiện Trường'}
+                  <X className="h-4 w-4" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-        )
-      )}
+
+              <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+                <div>
+                  <label className="mb-1 block font-bold text-slate-700">
+                    Tiêu Đề Thông Báo / Cảnh Báo <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nhập tiêu đề thông báo..."
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block font-bold text-slate-700">
+                      Dự Án Áp Dụng <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formProjectId}
+                      onChange={(e) => setFormProjectId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="all">★ Toàn hệ thống (Tất cả dự án)</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block font-bold text-slate-700">
+                      Phân Loại <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) =>
+                        setCategory(e.target.value as SiteBulletin['category'])
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="temporary_stop">⛔ Tạm dừng thi công</option>
+                      <option value="permit_legal">📄 Hồ sơ pháp lý / Giấy phép GTVT</option>
+                      <option value="weather">⛈ Cảnh báo thời tiết mưa bão</option>
+                      <option value="infrastructure_obstacle">⚡ Vướng hạ tầng ngầm</option>
+                      <option value="urgent">🚨 Chỉ đạo khẩn cấp</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="mb-1 block font-bold text-slate-700">
+                      Số Hiệu Hồ Sơ
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: GP-0894/SGTVT"
+                      value={documentRefNumber}
+                      onChange={(e) => setDocumentRefNumber(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block font-bold text-slate-700">
+                      Mức Độ
+                    </label>
+                    <select
+                      value={severity}
+                      onChange={(e) =>
+                        setSeverity(e.target.value as SiteBulletin['severity'])
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="warning">⚠️ Cảnh báo</option>
+                      <option value="critical">🚨 Khẩn cấp</option>
+                      <option value="info">ℹ️ Thông báo</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block font-bold text-slate-700">
+                      Ngày Ban Hành
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 font-mono text-xs text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-bold text-slate-700">
+                    Người Lập / Nguồn Phát Hành
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={author}
+                    onChange={(e) => setAuthor(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-bold text-slate-700">
+                    Nội Dung Chi Tiết <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Nhập nội dung chi tiết thông báo, lý do tạm ngưng hoặc yêu cầu phối hợp..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs leading-relaxed text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-amber-700"
+                  >
+                    {editingBulletin ? 'Lưu cập nhật' : 'Phát hành ngay'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

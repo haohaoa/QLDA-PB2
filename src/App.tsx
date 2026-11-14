@@ -836,7 +836,7 @@ export default function App() {
       {/* 2. Main Content Viewport */}
       <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
         {/* Viewport Body */}
-        <main className="flex-1 max-w-7xl w-full min-w-0 mx-auto overflow-x-hidden p-3 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8">
+        <main className="flex-1 max-w-7xl w-full min-w-0 mx-auto overflow-x-hidden p-2.5 pb-20 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8">
           {dataSyncNotice && (
             <div
               role="status"
@@ -958,9 +958,9 @@ export default function App() {
 
           {/* TAB 3: BẢN ĐỒ TUYẾN & ĐIỂM CUA UỐN (Leaflet Map, mốc bắt đầu, góc cua, kết thúc) */}
           {currentTab === 'gis-map' && (
-            <div className="space-y-3 sm:space-y-4">
-              <div className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 shadow-xs sm:rounded-2xl sm:p-5">
-                <h2 className="text-sm font-bold tracking-tight text-slate-900 sm:text-lg">Bản đồ tuyến ngầm</h2>
+            <div className="space-y-2.5 sm:space-y-4">
+              <div className="hidden sm:block rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">Bản đồ tuyến ngầm</h2>
               </div>
 
               <GisMap
