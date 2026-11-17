@@ -103,17 +103,25 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       : 'working'
   );
   const [customResource, setCustomResource] = useState<string>(editingLog?.resources || '');
-  const [excavationToday, setExcavationToday] = useState<string>(
-    editingLog?.excavationTodayM ? String(editingLog.excavationTodayM) : ''
+  const [excavationToday, setExcavationToday] = useState<number | ''>(
+    editingLog && typeof editingLog.excavationTodayM === 'number'
+      ? editingLog.excavationTodayM
+      : ''
   );
   const [chambersToday, setChambersToday] = useState<number | ''>(
-    editingLog?.chambersPouredToday || ''
+    editingLog && typeof editingLog.chambersPouredToday === 'number'
+      ? editingLog.chambersPouredToday
+      : ''
   );
   const [pipeLaidToday, setPipeLaidToday] = useState<number | ''>(
-    editingLog?.pipeLaidTodayM || ''
+    editingLog && typeof editingLog.pipeLaidTodayM === 'number'
+      ? editingLog.pipeLaidTodayM
+      : ''
   );
   const [restoredToday, setRestoredToday] = useState<number | ''>(
-    editingLog?.restoredTodayM || ''
+    editingLog && typeof editingLog.restoredTodayM === 'number'
+      ? editingLog.restoredTodayM
+      : ''
   );
   const [stoppageReason, setStoppageReason] = useState<string>(
     editingLog?.stoppageReason || ''
@@ -317,6 +325,11 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       return;
     }
 
+    if (resourceType === 'working' && excavationToday === '') {
+      setSaveError('Vui lòng nhập khối lượng đào phui trong ngày (nhập 0 nếu hôm nay chưa đào phui).');
+      return;
+    }
+
     try {
       await cleanupUncommittedViolationPhotos(hasViolation ? violationPhotoUrls : []);
     } catch (error) {
@@ -365,10 +378,22 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       projectId: currentProject?.id || 'prj-hl-vt',
       projectName: currentProject?.name || 'Ngầm hóa tuyến',
       resources: finalResource,
-      excavationTodayM: resourceType === 'working' ? Number(excavationToday) || 0 : 0,
-      chambersPouredToday: resourceType === 'working' ? Number(chambersToday) || 0 : 0,
-      pipeLaidTodayM: resourceType === 'working' ? Number(pipeLaidToday) || 0 : 0,
-      restoredTodayM: resourceType === 'working' ? Number(restoredToday) || 0 : 0,
+      excavationTodayM:
+        resourceType === 'working'
+          ? excavationToday === '' ? 0 : Number(excavationToday)
+          : 0,
+      chambersPouredToday:
+        resourceType === 'working'
+          ? chambersToday === '' ? 0 : Number(chambersToday)
+          : 0,
+      pipeLaidTodayM:
+        resourceType === 'working'
+          ? pipeLaidToday === '' ? 0 : Number(pipeLaidToday)
+          : 0,
+      restoredTodayM:
+        resourceType === 'working'
+          ? restoredToday === '' ? 0 : Number(restoredToday)
+          : 0,
       contractTrenchM: currentProject?.totalLengthM || 2500,
       contractChambers: currentProject?.totalChambers || 30,
       stoppageReason: resourceType === 'stopped' ? stoppageReason.trim() : undefined,
@@ -624,12 +649,9 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={
-                    excavationToday === '' || Number(excavationToday) === 0
-                      ? ''
-                      : Number(excavationToday)
-                  }
-                  onValueChange={(value) => setExcavationToday(value === '' ? '' : String(value))}
+                  placeholder="0"
+                  value={excavationToday}
+                  onValueChange={setExcavationToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                   required={resourceType === 'working'}
                 />
@@ -642,7 +664,8 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={pipeLaidToday || ''}
+                  placeholder="0"
+                  value={pipeLaidToday}
                   onValueChange={setPipeLaidToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
@@ -655,7 +678,8 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={chambersToday || ''}
+                  placeholder="0"
+                  value={chambersToday}
                   onValueChange={setChambersToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />
@@ -668,7 +692,8 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                 </div>
                 <FormattedNumberInput
                   min={0}
-                  value={restoredToday || ''}
+                  placeholder="0"
+                  value={restoredToday}
                   onValueChange={setRestoredToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
                 />

@@ -36,7 +36,12 @@ export const FormattedNumberInput: React.FC<FormattedNumberInputProps> = ({
         setIsFocused(true);
       }}
       onChange={(event) => {
-        const digits = event.target.value.replace(/\D/g, '');
+        const rawDigits = event.target.value.replace(/\D/g, '');
+        // Normalize leading zeros while preserving standalone '0': '00' -> '0', '05' -> '5', '' -> ''
+        const digits =
+          rawDigits.length > 1 && rawDigits.startsWith('0')
+            ? String(Number(rawDigits))
+            : rawDigits;
         const nextValue = digits === '' ? '' : Number(digits);
         event.currentTarget.setCustomValidity(
           min !== undefined && nextValue !== '' && nextValue < min
