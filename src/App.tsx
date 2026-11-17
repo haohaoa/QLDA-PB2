@@ -26,6 +26,7 @@ import {
   applyDailyLogProgressChanges,
   getContractorKey,
   getLatestProgressLogs,
+  reconcileDailyLogProgress,
   removeDailyLogProgress,
   synchronizeProjectProgress,
 } from './utils/progressUtils';
@@ -161,7 +162,9 @@ export default function App() {
         ].some((rows) => rows.length > 0);
         const useInitialData = !data.isInitialized && !hasDatabaseRows;
         const loadedProjects = useInitialData ? INITIAL_PROJECTS : data.projects;
-        const loadedDailyLogs = useInitialData ? INITIAL_DAILY_LOGS : data.dailyLogs;
+        const loadedDailyLogs = reconcileDailyLogProgress(
+          useInitialData ? INITIAL_DAILY_LOGS : data.dailyLogs
+        );
         const loadedPlanTypes = useInitialData
           ? INITIAL_PLAN_TYPES
           : data.planTypes;
@@ -271,7 +274,8 @@ export default function App() {
     ].some((rows) => rows.length > 0);
     const useServerData = !!serverData && (serverData.isInitialized || hasServerRows);
     const serverProjects = useServerData ? serverData.projects : projects;
-    const serverDailyLogs = useServerData ? serverData.dailyLogs : dailyLogs;
+    const rawServerDailyLogs = useServerData ? serverData.dailyLogs : dailyLogs;
+    const serverDailyLogs = reconcileDailyLogProgress(rawServerDailyLogs);
     const serverPlanTypes = useServerData ? serverData.planTypes : planTypes;
     const freshProjects = synchronizeProjectProgress(
       normalizeProjectPlanTypes(serverProjects, serverPlanTypes),
@@ -369,6 +373,10 @@ export default function App() {
     };
     const nextDailyLogs = applyDailyLogProgressChange(serverDailyLogs, updatedEntry, previousLog);
     const nextProjects = synchronizeProjectProgress(freshProjects, nextDailyLogs);
+    const rawLogsById = new Map(rawServerDailyLogs.map((log) => [log.id, log]));
+    const changedLogs = nextDailyLogs.filter(
+      (log) => JSON.stringify(log) !== JSON.stringify(rawLogsById.get(log.id))
+    );
     const changedProjects = nextProjects.filter(
       (project) =>
         JSON.stringify(project) !==
@@ -379,11 +387,11 @@ export default function App() {
     setPlanTypes(freshPlanTypes);
     try {
       await Promise.all([
-        persistRow('dailyLogs', updatedEntry),
+        persistRows('dailyLogs', changedLogs),
         persistRows('projects', changedProjects),
       ]);
     } catch (error) {
-      setDailyLogs(serverDailyLogs);
+      setDailyLogs(rawServerDailyLogs);
       setProjects(freshProjects);
       throw error;
     }
@@ -453,6 +461,10 @@ export default function App() {
     const previousProjects = projects;
     const nextDailyLogs = removeDailyLogProgress(dailyLogs, log);
     const nextProjects = synchronizeProjectProgress(projects, nextDailyLogs);
+    const previousLogsById = new Map(dailyLogs.map((item) => [item.id, item]));
+    const changedLogs = nextDailyLogs.filter(
+      (item) => JSON.stringify(item) !== JSON.stringify(previousLogsById.get(item.id))
+    );
     const changedProjects = nextProjects.filter(
       (project) =>
         JSON.stringify(project) !==
@@ -463,6 +475,7 @@ export default function App() {
     try {
       await Promise.all([
         persistDelete('dailyLogs', id),
+        persistRows('dailyLogs', changedLogs),
         persistRows('projects', changedProjects),
       ]);
     } catch (error) {
@@ -599,6 +612,10 @@ export default function App() {
 
     const nextDailyLogs = applyDailyLogProgressChanges(dailyLogs, changes);
     const nextProjects = synchronizeProjectProgress(projects, nextDailyLogs);
+    const previousLogsById = new Map(dailyLogs.map((log) => [log.id, log]));
+    const changedLogs = nextDailyLogs.filter(
+      (log) => JSON.stringify(log) !== JSON.stringify(previousLogsById.get(log.id))
+    );
     const changedProjects = nextProjects.filter(
       (project) =>
         JSON.stringify(project) !==
@@ -608,7 +625,7 @@ export default function App() {
     setProjects(nextProjects);
     try {
       await Promise.all([
-        persistRows('dailyLogs', changes),
+        persistRows('dailyLogs', changedLogs),
         persistRows('projects', changedProjects),
       ]);
     } catch (error) {
@@ -624,12 +641,13 @@ export default function App() {
   const handleImportBackup = async (file: File) => {
     if (!isAdmin) throw new Error('Bạn cần đăng nhập Admin để khôi phục dữ liệu.');
     const backup = await importDataBackupFromExcel(file);
+    const reconciledLogs = reconcileDailyLogProgress(backup.dailyLogs);
     const normalizedProjects = normalizeProjectPlanTypes(backup.projects, backup.planTypes);
     const restoredPlanTypes = includeUnclassifiedPlanType(backup.planTypes, normalizedProjects);
-    const restoredProjects = synchronizeProjectProgress(normalizedProjects, backup.dailyLogs);
+    const restoredProjects = synchronizeProjectProgress(normalizedProjects, reconciledLogs);
     const previousData = { projects, dailyLogs, bulletins, planTypes };
     setProjects(restoredProjects);
-    setDailyLogs(backup.dailyLogs);
+    setDailyLogs(reconciledLogs);
     setBulletins(backup.bulletins);
     setPlanTypes(restoredPlanTypes);
     setSelectedProjectId('all');
@@ -648,7 +666,7 @@ export default function App() {
     try {
       await Promise.all([
         replaceTable('projects', previousData.projects, restoredProjects),
-        replaceTable('dailyLogs', previousData.dailyLogs, backup.dailyLogs),
+        replaceTable('dailyLogs', previousData.dailyLogs, reconciledLogs),
         replaceTable('bulletins', previousData.bulletins, backup.bulletins),
         replaceTable('planTypes', previousData.planTypes, restoredPlanTypes),
       ]);

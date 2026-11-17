@@ -256,3 +256,51 @@ export function synchronizeProjectProgress(
     };
   });
 }
+
+export function reconcileDailyLogProgress(logs: DailyLogEntry[]): DailyLogEntry[] {
+  if (logs.length === 0) return logs;
+
+  const indexedGroups = new Map<string, IndexedLog[]>();
+  logs.forEach((log, index) => {
+    const key = `${log.projectId}:${getContractorKey(log.contractorName)}`;
+    const group = indexedGroups.get(key) || [];
+    group.push({ index, log });
+    indexedGroups.set(key, group);
+  });
+
+  const nextLogs = [...logs];
+  let hasChanges = false;
+
+  for (const group of indexedGroups.values()) {
+    group.sort((left, right) => compareLogOrder(left.log, right.log));
+    let runningTrench = 0;
+    let runningChambers = 0;
+
+    for (const { index, log } of group) {
+      const minTrench = runningTrench + getDailyTrenchOutput(log);
+      const minChambers = runningChambers + (Number(log.chambersPouredToday) || 0);
+      const currentTrench = Number(log.cumulativeTrenchM);
+      const currentChambers = Number(log.cumulativeChambers);
+      const nextTrench =
+        !Number.isFinite(currentTrench) || currentTrench < minTrench ? minTrench : currentTrench;
+      const nextChambers =
+        !Number.isFinite(currentChambers) || currentChambers < minChambers
+          ? minChambers
+          : currentChambers;
+
+      if (nextTrench !== log.cumulativeTrenchM || nextChambers !== log.cumulativeChambers) {
+        nextLogs[index] = {
+          ...log,
+          cumulativeTrenchM: nextTrench,
+          cumulativeChambers: nextChambers,
+        };
+        hasChanges = true;
+      }
+
+      runningTrench = nextTrench;
+      runningChambers = nextChambers;
+    }
+  }
+
+  return hasChanges ? nextLogs : logs;
+}
