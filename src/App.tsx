@@ -75,6 +75,62 @@ const includeUnclassifiedPlanType = (
     ? [...planTypes.filter((planType) => planType.id !== UNCLASSIFIED_PLAN_TYPE.id), UNCLASSIFIED_PLAN_TYPE]
     : planTypes.filter((planType) => planType.id !== UNCLASSIFIED_PLAN_TYPE.id);
 
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const normalizeDailyLogForConflictCheck = (log: DailyLogEntry) => ({
+  id: log.id,
+  date: log.date || '',
+  stt: Number(log.stt) || 0,
+  contractorName: log.contractorName || '',
+  projectId: log.projectId || '',
+  projectName: log.projectName || '',
+  resources: log.resources || '',
+  excavationTodayM: Number(log.excavationTodayM) || 0,
+  chambersPouredToday: Number(log.chambersPouredToday) || 0,
+  pipeLaidTodayM: Number(log.pipeLaidTodayM) || 0,
+  restoredTodayM: Number(log.restoredTodayM) || 0,
+  cumulativeTrenchM: Number(log.cumulativeTrenchM) || 0,
+  contractTrenchM: Number(log.contractTrenchM) || 0,
+  cumulativeChambers: Number(log.cumulativeChambers) || 0,
+  contractChambers: Number(log.contractChambers) || 0,
+  stoppageReason: log.stoppageReason || '',
+  supervisorName: log.supervisorName || '',
+  photoUrls: Array.isArray(log.photoUrls) ? log.photoUrls : [],
+  photoUrl: log.photoUrl || '',
+  notes: log.notes || '',
+  violationReport: log.violationReport
+    ? {
+        id: log.violationReport.id || '',
+        hasViolation: !!log.violationReport.hasViolation,
+        code: log.violationReport.code || '',
+        violationType: log.violationReport.violationType,
+        violationTypeLabel: log.violationReport.violationTypeLabel || '',
+        description: log.violationReport.description || '',
+        correctiveAction: log.violationReport.correctiveAction || '',
+        photoUrls: Array.isArray(log.violationReport.photoUrls)
+          ? log.violationReport.photoUrls
+          : [],
+        photoUrl: log.violationReport.photoUrl || '',
+        deadlineHours: Number(log.violationReport.deadlineHours) || 0,
+        status: log.violationReport.status,
+        supervisorSign: log.violationReport.supervisorSign || '',
+      }
+    : null,
+});
+
 export default function App() {
   const { showAlert, showConfirm } = useAppDialog();
   const shouldReduceMotion = useReducedMotion();
@@ -305,7 +361,8 @@ export default function App() {
     const editingLogChanged =
       !!editingLog &&
       (!currentEditingLog ||
-        JSON.stringify(currentEditingLog) !== JSON.stringify(editingLog));
+        stableStringify(normalizeDailyLogForConflictCheck(currentEditingLog)) !==
+          stableStringify(normalizeDailyLogForConflictCheck(editingLog)));
 
     if (duplicate || editingLogChanged) {
       setProjects(freshProjects);
