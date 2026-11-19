@@ -1,4 +1,4 @@
-import { UndergroundProject } from '../types/undergrounding';
+import { ProjectPausePeriod, UndergroundProject } from '../types/undergrounding';
 
 export interface ScheduleBounds {
   startDate: string;
@@ -64,6 +64,33 @@ export function getScheduleBounds(
 
 export function isProjectActiveOnDate(project: UndergroundProject, date: string): boolean {
   return date >= project.startDate && date <= project.finishDate;
+}
+
+export function getProjectPausePeriodForDate(
+  project: Pick<UndergroundProject, 'status' | 'startDate' | 'pausePeriods'>,
+  date: string
+): ProjectPausePeriod | undefined {
+  const periods = project.pausePeriods || [];
+  const matched = periods.find((period) => {
+    if (period.endDate) {
+      return date >= period.startDate && date < period.endDate;
+    }
+    return project.status === 'paused' && date >= period.startDate;
+  });
+  if (matched) return matched;
+
+  if (project.status === 'paused' && periods.length === 0 && date >= project.startDate) {
+    return {
+      id: 'pause-legacy',
+      startDate: project.startDate,
+      reason: 'Dự án đang tạm ngưng',
+    };
+  }
+  return undefined;
+}
+
+export function isProjectReportableOnDate(project: UndergroundProject, date: string): boolean {
+  return isProjectActiveOnDate(project, date) && !getProjectPausePeriodForDate(project, date);
 }
 
 export function buildScheduleWeeks(

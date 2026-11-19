@@ -14,6 +14,7 @@ import { ProjectContractorsPanel } from './ProjectContractorsPanel';
 import { useAppDialog } from './AppDialogProvider';
 import { formatNumber } from '../utils/numberFormat';
 import { generateProjectCode } from '../utils/projectCode';
+import { getCurrentDateKey } from '../utils/scheduleUtils';
 import {
   FolderPlus,
   Plus,
@@ -25,6 +26,7 @@ import {
   UsersRound,
   Navigation,
   Lock,
+  PauseCircle,
   Pencil,
   Download,
   Upload,
@@ -86,6 +88,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
   const [isPlanTypeModalOpen, setIsPlanTypeModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [pausingProjectTarget, setPausingProjectTarget] = useState<UndergroundProject | null>(null);
+  const [pauseModalMode, setPauseModalMode] = useState<'pause' | 'resume' | 'edit_reason'>('pause');
+  const [editingPausePeriodId, setEditingPausePeriodId] = useState<string | null>(null);
+  const [pauseReasonInput, setPauseReasonInput] = useState('');
+  const [pauseStartDateInput, setPauseStartDateInput] = useState(() => getCurrentDateKey());
+  const [pauseFormError, setPauseFormError] = useState<string | null>(null);
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -138,12 +146,138 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setTurnPoints((current) => current.filter((p) => p.id !== id));
   };
 
+  const getAutoPauseStartDate = (project: UndergroundProject): { startDate: string; lastWorkDate?: string } => {
+    const today = getCurrentDateKey();
+    const lastLog = dailyLogs
+      .filter((log) => log.projectId === project.id)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (lastLog) {
+      const [y, m, d] = lastLog.date.split('-').map(Number);
+      const nextDay = new Date(y, m - 1, d + 1);
+      const nextDateKey = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(
+        2,
+        '0'
+      )}-${String(nextDay.getDate()).padStart(2, '0')}`;
+      return {
+        startDate: nextDateKey > today ? today : nextDateKey,
+        lastWorkDate: lastLog.date,
+      };
+    }
+    return {
+      startDate: project.startDate <= today ? project.startDate : today,
+    };
+  };
+
   const handleProjectStatusChange = async (
     project: UndergroundProject,
     status: ProjectStatus
   ) => {
-    if ((project.status || 'in_progress') === status) return;
+    const currentStatus = project.status || 'in_progress';
+    if (currentStatus === status) return;
+
+    if (status === 'paused') {
+      const autoPause = getAutoPauseStartDate(project);
+      setPausingProjectTarget(project);
+      setPauseModalMode('pause');
+      setEditingPausePeriodId(null);
+      setPauseReasonInput('');
+      setPauseStartDateInput(autoPause.startDate);
+      setPauseFormError(null);
+      return;
+    }
+
+    if (currentStatus === 'paused' && status === 'in_progress') {
+      const today = getCurrentDateKey();
+      const existingPeriods = project.pausePeriods || [];
+      const hasOpenPeriod = existingPeriods.some((p) => !p.endDate);
+
+      if (!hasOpenPeriod) {
+        const autoPause = getAutoPauseStartDate(project);
+        if (autoPause.startDate < today) {
+          setPausingProjectTarget(project);
+          setPauseModalMode('resume');
+          setEditingPausePeriodId(null);
+          setPauseReasonInput('');
+          setPauseStartDateInput(autoPause.startDate);
+          setPauseFormError(null);
+          return;
+        }
+      }
+
+      const nextPeriods = existingPeriods.map((period) =>
+        !period.endDate
+          ? {
+              ...period,
+              endDate: today > period.startDate ? today : period.startDate,
+            }
+          : period
+      );
+
+      await onUpdateProject({
+        ...project,
+        status,
+        pausePeriods: nextPeriods,
+      });
+      return;
+    }
+
     await onUpdateProject({ ...project, status });
+  };
+
+  const handleConfirmPauseProject = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pausingProjectTarget) return;
+    const trimmedReason = pauseReasonInput.trim();
+    if (!trimmedReason) {
+      setPauseFormError('Vui lòng nhập lý do tạm ngưng dự án.');
+      return;
+    }
+    const today = getCurrentDateKey();
+    const startDateKey = pauseStartDateInput || today;
+    const existingPeriods = pausingProjectTarget.pausePeriods || [];
+
+    let nextStatus: ProjectStatus = 'paused';
+    let nextPeriods = existingPeriods;
+
+    if (pauseModalMode === 'edit_reason' && editingPausePeriodId) {
+      nextStatus = pausingProjectTarget.status || 'in_progress';
+      nextPeriods = existingPeriods.map((p) =>
+        p.id === editingPausePeriodId ? { ...p, reason: trimmedReason } : p
+      );
+    } else if (pauseModalMode === 'resume') {
+      nextStatus = 'in_progress';
+      nextPeriods = [
+        ...existingPeriods,
+        {
+          id: `pause-${Date.now()}`,
+          startDate: startDateKey,
+          endDate: today,
+          reason: trimmedReason,
+        },
+      ];
+    } else {
+      nextStatus = 'paused';
+      nextPeriods = [
+        ...existingPeriods.map((p) => (!p.endDate ? { ...p, endDate: startDateKey } : p)),
+        {
+          id: `pause-${Date.now()}`,
+          startDate: startDateKey,
+          reason: trimmedReason,
+        },
+      ];
+    }
+
+    const saved = await onUpdateProject({
+      ...pausingProjectTarget,
+      status: nextStatus,
+      pausePeriods: nextPeriods,
+    });
+    if (saved) {
+      setPausingProjectTarget(null);
+      setEditingPausePeriodId(null);
+      setPauseReasonInput('');
+      setPauseFormError(null);
+    }
   };
 
   const handleUpdateTurnPointName = (id: string, nextName: string) => {
@@ -1152,6 +1286,44 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           CĐT: <strong className="font-semibold text-slate-700">{item.investor}</strong>
                         </span>
                       </div>
+                      {(item.pausePeriods || []).length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {(item.pausePeriods || []).map((period) => (
+                            <div
+                              key={period.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                            >
+                              <PauseCircle className="h-3 w-3 shrink-0 text-amber-600" />
+                              <span>
+                                {period.endDate
+                                  ? `Ngưng ${period.startDate.split('-').reverse().join('/')}→${period.endDate
+                                      .split('-')
+                                      .reverse()
+                                      .join('/')}`
+                                  : `Tạm ngưng từ ${period.startDate.split('-').reverse().join('/')}`}
+                                : <strong>{period.reason}</strong>
+                              </span>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  title="Sửa lý do tạm ngưng"
+                                  onClick={() => {
+                                    setPausingProjectTarget(item);
+                                    setPauseModalMode('edit_reason');
+                                    setEditingPausePeriodId(period.id);
+                                    setPauseStartDateInput(period.startDate);
+                                    setPauseReasonInput(period.reason);
+                                    setPauseFormError(null);
+                                  }}
+                                  className="ml-0.5 rounded p-0.5 text-amber-700 hover:bg-amber-200/70"
+                                >
+                                  <Pencil className="h-2.5 w-2.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Right Controls: Compact Status Dropdown (ĐTH / TN / HT) + Edit + Delete */}
@@ -1377,6 +1549,115 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
             </p>
           )}
       </div>
+
+      {/* Modal: Nhập lý do tạm ngưng dự án */}
+      {pausingProjectTarget &&
+        createPortal(
+          <div className="fixed inset-0 z-[105] flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs">
+            <form
+              onSubmit={handleConfirmPauseProject}
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl space-y-3.5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                    <PauseCircle className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      {pauseModalMode === 'edit_reason'
+                        ? 'Cập nhật lý do tạm ngưng'
+                        : pauseModalMode === 'resume'
+                        ? 'Nhập lý do giai đoạn đã tạm ngưng'
+                        : 'Chuyển sang Tạm ngưng dự án'}
+                    </h3>
+                    <p className="truncate text-[11px] text-slate-500">
+                      {pausingProjectTarget.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPausingProjectTarget(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="mb-1 block font-bold text-slate-700">
+                    Ngày bắt đầu tạm ngưng (tự động)
+                  </label>
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                    <span className="flex items-center gap-1.5 font-mono font-bold text-slate-900">
+                      <Lock className="h-3.5 w-3.5 text-amber-600" />
+                      {pauseStartDateInput.split('-').reverse().join('/')}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {(() => {
+                        const info = getAutoPauseStartDate(pausingProjectTarget);
+                        return info.lastWorkDate
+                          ? `Sau ngày thi công cuối (${info.lastWorkDate.split('-').reverse().join('/')})`
+                          : 'Chưa có nhật ký thi công';
+                      })()}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-bold text-slate-700">
+                    Lý do tạm ngưng giai đoạn này <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    autoFocus
+                    placeholder="VD: Chờ cấp giấy phép đào đường Sở GTVT / Vướng hạ tầng điện lực / Thời tiết mưa bão kéo dài..."
+                    value={pauseReasonInput}
+                    onChange={(e) => {
+                      setPauseReasonInput(e.target.value);
+                      setPauseFormError(null);
+                    }}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs text-slate-900 outline-none focus:border-amber-500 focus:bg-white"
+                  />
+                  {pauseFormError && (
+                    <p role="alert" className="mt-1 text-[11px] font-semibold text-red-600">
+                      {pauseFormError}
+                    </p>
+                  )}
+                </div>
+
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                  Các ngày trong giai đoạn tạm ngưng sẽ được khóa ở trạng thái{' '}
+                  <strong>Tạm ngưng</strong> (không tính thiếu báo cáo và không thể thêm/sửa/xóa sau khi hoạt động trở lại).
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setPausingProjectTarget(null)}
+                  className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-amber-700"
+                >
+                  {pauseModalMode === 'edit_reason'
+                    ? 'Lưu lý do'
+                    : pauseModalMode === 'resume'
+                    ? 'Lưu & Hoạt động lại'
+                    : 'Xác nhận Tạm ngưng'}
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

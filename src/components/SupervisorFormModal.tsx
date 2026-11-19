@@ -103,25 +103,25 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       : 'working'
   );
   const [customResource, setCustomResource] = useState<string>(editingLog?.resources || '');
+  const toInitialNumber = (val: unknown): number | '' => {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val === 'string' && val.trim() !== '' && Number.isFinite(Number(val))) {
+      return Number(val);
+    }
+    return '';
+  };
+
   const [excavationToday, setExcavationToday] = useState<number | ''>(
-    editingLog && typeof editingLog.excavationTodayM === 'number'
-      ? editingLog.excavationTodayM
-      : ''
+    editingLog ? toInitialNumber(editingLog.excavationTodayM) : ''
   );
   const [chambersToday, setChambersToday] = useState<number | ''>(
-    editingLog && typeof editingLog.chambersPouredToday === 'number'
-      ? editingLog.chambersPouredToday
-      : ''
+    editingLog ? toInitialNumber(editingLog.chambersPouredToday) : ''
   );
   const [pipeLaidToday, setPipeLaidToday] = useState<number | ''>(
-    editingLog && typeof editingLog.pipeLaidTodayM === 'number'
-      ? editingLog.pipeLaidTodayM
-      : ''
+    editingLog ? toInitialNumber(editingLog.pipeLaidTodayM) : ''
   );
   const [restoredToday, setRestoredToday] = useState<number | ''>(
-    editingLog && typeof editingLog.restoredTodayM === 'number'
-      ? editingLog.restoredTodayM
-      : ''
+    editingLog ? toInitialNumber(editingLog.restoredTodayM) : ''
   );
   const [stoppageReason, setStoppageReason] = useState<string>(
     editingLog?.stoppageReason || ''
@@ -325,8 +325,14 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
       return;
     }
 
-    if (resourceType === 'working' && excavationToday === '') {
-      setSaveError('Vui lòng nhập khối lượng đào phui trong ngày (nhập 0 nếu hôm nay chưa đào phui).');
+    if (
+      resourceType === 'working' &&
+      excavationToday === '' &&
+      pipeLaidToday === '' &&
+      chambersToday === '' &&
+      restoredToday === ''
+    ) {
+      setSaveError('Vui lòng nhập ít nhất một khối lượng thi công trong ngày (nhập 0 nếu chưa phát sinh).');
       return;
     }
 
@@ -653,7 +659,6 @@ export const SupervisorFormModal: React.FC<SupervisorFormModalProps> = ({
                   value={excavationToday}
                   onValueChange={setExcavationToday}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-black text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
-                  required={resourceType === 'working'}
                 />
               </div>
 

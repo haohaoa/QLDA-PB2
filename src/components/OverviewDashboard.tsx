@@ -655,7 +655,11 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         totalChambers: log.contractChambers,
                         assessment: getContractorAssessment(
                           project,
-                          { name: log.contractorName, totalLengthM: log.contractTrenchM },
+                          {
+                            name: log.contractorName,
+                            totalLengthM: log.contractTrenchM,
+                            totalChambers: log.contractChambers,
+                          },
                           dailyLogs,
                           currentDate
                         ),
@@ -1037,7 +1041,11 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       color: '#2563eb',
                       assessment: getContractorAssessment(
                         project,
-                        { name: log.contractorName, totalLengthM: log.contractTrenchM },
+                        {
+                          name: log.contractorName,
+                          totalLengthM: log.contractTrenchM,
+                          totalChambers: log.contractChambers,
+                        },
                         dailyLogs,
                         currentDate
                       ),
@@ -1295,11 +1303,11 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                               <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: contractor.color }} />
                               <span className="break-words">{contractor.name}</span>
                               <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
-                                contractor.assessment.status === 'complete' || contractor.assessment.status === 'on_schedule'
+                                contractor.assessment.overallStatus === 'complete' || contractor.assessment.overallStatus === 'on_schedule'
                                   ? 'bg-emerald-100 text-emerald-800'
-                                  : contractor.assessment.status === 'behind_schedule'
+                                  : contractor.assessment.overallStatus === 'behind_schedule'
                                   ? 'bg-amber-100 text-amber-800'
-                                  : contractor.assessment.status === 'overdue'
+                                  : contractor.assessment.overallStatus === 'overdue'
                                   ? 'bg-red-100 text-red-800'
                                   : 'bg-white text-slate-600'
                               }`}>
@@ -1309,7 +1317,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                                   behind_schedule: 'Nguy cơ trễ',
                                   overdue: 'Quá hạn',
                                   insufficient_data: 'Thiếu dữ liệu',
-                                }[contractor.assessment.status]}
+                                }[contractor.assessment.overallStatus]}
                               </span>
                             </span>
                             <span className="font-mono text-slate-600">
@@ -1346,13 +1354,24 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                                 KLTB:{' '}
                                 <strong>{contractor.assessment.averagePerMonthM === null ? '—' : `${formatNumber(contractor.assessment.averagePerMonthM)} m/tháng`}</strong>
                               </p>
+                              {contractor.totalChambers > 0 && (
+                                <p>
+                                  Hố ga còn: <strong>{formatNumber(contractor.assessment.remainingChambers)} hầm</strong>
+                                  {' · '}KLTB:{' '}
+                                  <strong>
+                                    {contractor.assessment.chamberAvgPerWeek === null
+                                      ? '—'
+                                      : `${formatNumber(contractor.assessment.chamberAvgPerWeek)} hầm/tuần`}
+                                  </strong>
+                                </p>
+                              )}
                             </div>
-                            <div className="text-slate-700">
+                            <div className="space-y-1 text-slate-700">
                               <p className="font-semibold">Đánh giá đến hạn {project.finishDate.split('-').reverse().join('/')}</p>
                               {contractor.assessment.status === 'complete' ? (
-                                <p className="text-emerald-700">Đã hoàn thành khối lượng hợp đồng.</p>
+                                <p className="text-emerald-700">Mương: Đã hoàn thành khối lượng hợp đồng.</p>
                               ) : contractor.assessment.status === 'overdue' ? (
-                                <p className="text-red-700">Đã quá hạn; cần cập nhật tiến độ và thời hạn.</p>
+                                <p className="text-red-700">Mương: Đã quá hạn; cần cập nhật tiến độ và thời hạn.</p>
                               ) : contractor.assessment.requiredPerDayM !== null ? (
                                 <>
                                   <p>
@@ -1365,13 +1384,35 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                                       Cần tăng thêm {formatNumber(contractor.assessment.additionalPerDayM || 0)} m/ngày.
                                     </p>
                                   ) : contractor.assessment.status === 'on_schedule' ? (
-                                    <p className="font-semibold text-emerald-700">Tốc độ hiện tại đáp ứng tiến độ.</p>
+                                    <p className="font-semibold text-emerald-700">Tốc độ mương hiện tại đáp ứng tiến độ.</p>
                                   ) : (
                                     <p className="text-slate-500">Chưa có nhật ký để xác định tốc độ.</p>
                                   )}
                                 </>
                               ) : (
                                 <p className="text-slate-500">Chưa đủ dữ liệu để dự báo tiến độ.</p>
+                              )}
+                              {contractor.assessment.chamberStatus !== 'not_applicable' && (
+                                contractor.assessment.chamberStatus === 'complete' ? (
+                                  <p className="font-semibold text-emerald-700">Hố ga: Đã hoàn thành khối lượng hợp đồng.</p>
+                                ) : contractor.assessment.chamberStatus === 'overdue' ? (
+                                  <p className="font-semibold text-red-700">
+                                    Hố ga: Đã quá hạn (còn {formatNumber(contractor.assessment.remainingChambers)} hầm).
+                                  </p>
+                                ) : contractor.assessment.chamberRequiredPerWeek !== null ? (
+                                  <div className="pt-0.5">
+                                    <p>
+                                      Hố ga cần đạt: <strong>{formatNumber(contractor.assessment.chamberRequiredPerWeek)} hầm/tuần</strong>
+                                    </p>
+                                    {contractor.assessment.chamberStatus === 'behind_schedule' ? (
+                                      <p className="font-semibold text-amber-800">
+                                        Hố ga cần tăng thêm {formatNumber(contractor.assessment.chamberAdditionalPerWeek || 0)} hầm/tuần.
+                                      </p>
+                                    ) : contractor.assessment.chamberStatus === 'on_schedule' ? (
+                                      <p className="font-semibold text-emerald-700">Tốc độ hố ga đáp ứng tiến độ.</p>
+                                    ) : null}
+                                  </div>
+                                ) : null
                               )}
                             </div>
                           </div>

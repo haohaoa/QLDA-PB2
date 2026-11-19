@@ -113,14 +113,22 @@ export function generateZaloReportText(
   text += `------------------------------------\n`;
 
   logs.forEach((log, index) => {
-    const rate = Math.round((log.cumulativeTrenchM / log.contractTrenchM) * 100);
+    const rate =
+      log.contractTrenchM > 0
+        ? Math.round((log.cumulativeTrenchM / log.contractTrenchM) * 100)
+        : 0;
     text += `${index + 1}. [${log.contractorName} - ${log.projectName}]\n`;
     text += `   - Nguồn lực: ${log.resources}\n`;
-    text += `   - Đào phui ngày: ${formatNumber(log.excavationTodayM)}m | Đổ hầm ngày: ${formatNumber(log.chambersPouredToday)} bể\n`;
+    text += `   - Đào phui ngày: ${formatNumber(log.excavationTodayM)}m | Đổ hầm ngày: ${formatNumber(log.chambersPouredToday)} bể${
+      (log.restoredTodayM || 0) > 0 ? ` | Hoàn trả thảm: ${formatNumber(log.restoredTodayM || 0)}m` : ''
+    }\n`;
     text += `   - Lũy kế mương cáp: ${formatNumber(log.cumulativeTrenchM)}/${formatNumber(log.contractTrenchM)}m (${rate}%)\n`;
     text += `   - Bể cáp lũy kế: ${formatNumber(log.cumulativeChambers)}/${formatNumber(log.contractChambers)} hầm\n`;
     if (log.stoppageReason) {
       text += `   ⚠️ Lý do: ${log.stoppageReason}\n`;
+    }
+    if (log.notes) {
+      text += `   📝 Ghi chú: ${log.notes}\n`;
     }
   });
 

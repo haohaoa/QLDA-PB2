@@ -42,7 +42,12 @@ import {
   saveRow,
   verifyEditPassword,
 } from './utils/appDataStorage';
-import { getCurrentDateKey, isProjectActiveOnDate } from './utils/scheduleUtils';
+import {
+  getCurrentDateKey,
+  getProjectPausePeriodForDate,
+  isProjectActiveOnDate,
+  isProjectReportableOnDate,
+} from './utils/scheduleUtils';
 import { ImportedDailyLog } from './utils/dailyLogExcel';
 import { exportDataBackupToExcel, importDataBackupFromExcel } from './utils/dataBackupExcel';
 import { hasAssignedProjectContractor } from './utils/projectContractors';
@@ -235,8 +240,12 @@ export default function App() {
     await withDataWrite(() => deleteRow(table, id, sessionToken));
   };
 
-  // Calculate today unsubmitted project count
-  const activeProjectsToday = projects.filter((project) => isProjectActiveOnDate(project, today));
+  // Calculate today unsubmitted project count (exclude paused projects/dates)
+  const activeProjectsToday = projects.filter(
+    (project) =>
+      (project.status || 'in_progress') === 'in_progress' &&
+      isProjectReportableOnDate(project, today)
+  );
   const activeProjectIdsToday = new Set(activeProjectsToday.map((project) => project.id));
   const todayLogs = dailyLogs.filter(
     (log) => log.date === today && activeProjectIdsToday.has(log.projectId)
@@ -315,6 +324,14 @@ export default function App() {
     }
 
     const reportProject = freshProjects.find((project) => project.id === entryData.projectId);
+    const pausePeriod = reportProject
+      ? getProjectPausePeriodForDate(reportProject, entryData.date)
+      : undefined;
+    if (pausePeriod) {
+      throw new Error(
+        `Ngày ${entryData.date.split('-').reverse().join('/')} nằm trong giai đoạn dự án tạm ngưng (${pausePeriod.reason}), không thể thêm hoặc chỉnh sửa báo cáo.`
+      );
+    }
     if (!editingLog && reportProject && !hasAssignedProjectContractor(reportProject)) {
       throw new Error(
         'Dự án chưa được phân công nhà thầu thi công. Vui lòng phân công nhà thầu trước khi báo cáo tiến độ.'
@@ -456,7 +473,18 @@ export default function App() {
 
   const handleDeleteLog = async (id: string) => {
     const log = dailyLogs.find((item) => item.id === id);
-    if (!log || !(await confirmChange(`xóa báo cáo ngày ${log.date} của dự án ${log.projectName}`))) return;
+    if (!log) return;
+    const logProject = projects.find((item) => item.id === log.projectId);
+    const pausePeriod = logProject
+      ? getProjectPausePeriodForDate(logProject, log.date)
+      : undefined;
+    if (pausePeriod) {
+      await showAlert(
+        `Ngày ${log.date.split('-').reverse().join('/')} nằm trong giai đoạn dự án tạm ngưng (${pausePeriod.reason}), không thể xóa báo cáo.`
+      );
+      return;
+    }
+    if (!(await confirmChange(`xóa báo cáo ngày ${log.date} của dự án ${log.projectName}`))) return;
     const previousLogs = dailyLogs;
     const previousProjects = projects;
     const nextDailyLogs = removeDailyLogProgress(dailyLogs, log);

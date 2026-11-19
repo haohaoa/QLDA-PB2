@@ -316,14 +316,14 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
               behind_schedule: 'Nguy cơ trễ',
               overdue: 'Quá hạn',
               insufficient_data: 'Chưa đủ DL',
-            }[assessment.status];
+            }[assessment.overallStatus];
             const scheduleStatusClasses = {
               complete: 'bg-emerald-100 text-emerald-800',
               on_schedule: 'bg-emerald-100 text-emerald-800',
               behind_schedule: 'bg-amber-100 text-amber-800',
               overdue: 'bg-red-100 text-red-800',
               insufficient_data: 'bg-slate-100 text-slate-600',
-            }[assessment.status];
+            }[assessment.overallStatus];
             const isExpanded = expandedContractorId === contractor.id;
 
             return (

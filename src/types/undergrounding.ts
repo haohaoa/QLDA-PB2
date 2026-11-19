@@ -53,10 +53,18 @@ export interface ProjectContractor {
   contractValueVND: number;
 }
 
+export interface ProjectPausePeriod {
+  id: string;
+  startDate: string; // YYYY-MM-DD (ngày bắt đầu tạm ngưng, bao gồm)
+  endDate?: string; // YYYY-MM-DD (ngày hoạt động trở lại, không bao gồm)
+  reason: string; // Lý do tạm ngưng giai đoạn này
+}
+
 // Concrete Undergrounding Project (Dự án ngầm hóa)
 export interface UndergroundProject {
   id: string;
   status?: ProjectStatus;
+  pausePeriods?: ProjectPausePeriod[];
   name: string; // Tên dự án ngầm
   code: string; // Mã dự án
   planTypeId?: string;

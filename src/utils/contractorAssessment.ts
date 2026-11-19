@@ -8,6 +8,8 @@ export type ContractorScheduleStatus =
   | 'overdue'
   | 'insufficient_data';
 
+export type ChamberScheduleStatus = ContractorScheduleStatus | 'not_applicable';
+
 export interface ContractorAssessment {
   workDays: number;
   restDays: number;
@@ -25,6 +27,12 @@ export interface ContractorAssessment {
   additionalPerWeekM: number | null;
   additionalPerMonthM: number | null;
   status: ContractorScheduleStatus;
+  remainingChambers: number;
+  chamberAvgPerWeek: number | null;
+  chamberRequiredPerWeek: number | null;
+  chamberAdditionalPerWeek: number | null;
+  chamberStatus: ChamberScheduleStatus;
+  overallStatus: ContractorScheduleStatus;
 }
 
 function parseDateKey(value: string): number | null {
@@ -69,7 +77,9 @@ function roundRate(value: number): number {
 
 export function getContractorAssessment(
   project: UndergroundProject,
-  contractor: Pick<ProjectContractor, 'name' | 'totalLengthM'>,
+  contractor: Pick<ProjectContractor, 'name' | 'totalLengthM'> & {
+    totalChambers?: number;
+  },
   dailyLogs: DailyLogEntry[],
   today: string
 ): ContractorAssessment {
@@ -121,6 +131,17 @@ export function getContractorAssessment(
   const latestLog = logs[logs.length - 1];
   const completedM = latestLog?.cumulativeTrenchM || 0;
   const remainingM = Math.max(0, contractor.totalLengthM - completedM);
+  const targetChambers = Math.max(0, contractor.totalChambers || 0);
+  const completedChambers = latestLog?.cumulativeChambers || 0;
+  const remainingChambers = Math.max(0, targetChambers - completedChambers);
+  const chamberTotal = logs.reduce(
+    (total, log) => total + Math.max(0, log.chambersPouredToday || 0),
+    0
+  );
+  const chamberAvgPerWeek =
+    elapsedCalendarDays && elapsedCalendarDays > 0
+      ? roundRate((chamberTotal / elapsedCalendarDays) * 7)
+      : null;
   const finishTimestamp = parseDateKey(project.finishDate);
   const daysUntilFinish =
     todayTimestamp !== null && finishTimestamp !== null
@@ -159,6 +180,48 @@ export function getContractorAssessment(
     }
   }
 
+  let chamberStatus: ChamberScheduleStatus =
+    targetChambers > 0 ? 'insufficient_data' : 'not_applicable';
+  let chamberRequiredPerWeek: number | null = null;
+  let chamberAdditionalPerWeek: number | null = null;
+
+  if (targetChambers > 0) {
+    if (remainingChambers === 0) {
+      chamberStatus = 'complete';
+    } else if (daysUntilFinish !== null && daysUntilFinish < 0) {
+      chamberStatus = 'overdue';
+    } else if (daysUntilFinish !== null && daysUntilFinish >= 0) {
+      const remainingCalendarDays = daysUntilFinish + 1;
+      chamberRequiredPerWeek = roundRate((remainingChambers / remainingCalendarDays) * 7);
+      if (chamberAvgPerWeek !== null) {
+        chamberStatus =
+          chamberAvgPerWeek >= chamberRequiredPerWeek
+            ? 'on_schedule'
+            : 'behind_schedule';
+        chamberAdditionalPerWeek = roundRate(
+          Math.max(0, chamberRequiredPerWeek - chamberAvgPerWeek)
+        );
+      }
+    }
+  }
+
+  const activeStatuses: ContractorScheduleStatus[] = [];
+  if (contractor.totalLengthM > 0 || chamberStatus === 'not_applicable') {
+    activeStatuses.push(status);
+  }
+  if (chamberStatus !== 'not_applicable') {
+    activeStatuses.push(chamberStatus);
+  }
+  const overallStatus: ContractorScheduleStatus = activeStatuses.includes('overdue')
+    ? 'overdue'
+    : activeStatuses.includes('behind_schedule')
+    ? 'behind_schedule'
+    : activeStatuses.every((s) => s === 'complete')
+    ? 'complete'
+    : activeStatuses.every((s) => s === 'complete' || s === 'on_schedule')
+    ? 'on_schedule'
+    : 'insufficient_data';
+
   return {
     workDays,
     restDays,
@@ -176,5 +239,11 @@ export function getContractorAssessment(
     additionalPerWeekM,
     additionalPerMonthM,
     status,
+    remainingChambers,
+    chamberAvgPerWeek,
+    chamberRequiredPerWeek,
+    chamberAdditionalPerWeek,
+    chamberStatus,
+    overallStatus,
   };
 }

@@ -32,7 +32,9 @@ import {
   Eye,
   MapPin,
   Search,
+  FileBarChart2,
 } from 'lucide-react';
+import { DailyReportModal } from './DailyReportModal';
 import { ViolationPhotoImage } from './ViolationPhotoImage';
 import { generateZaloReportText } from '../utils/exportUtils';
 import {
@@ -51,8 +53,10 @@ import { getDailyLogPhotoUrls } from '../utils/dailyLogPhotos';
 import {
   buildScheduleWeeks,
   getCurrentDateKey,
+  getProjectPausePeriodForDate,
   getScheduleBounds,
   isProjectActiveOnDate,
+  isProjectReportableOnDate,
 } from '../utils/scheduleUtils';
 
 interface ProjectDailyReportProps {
@@ -204,6 +208,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   const [projectTypeFilter, setProjectTypeFilter] = useState('all');
   const [projectPickerPage, setProjectPickerPage] = useState(0);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
 
   useEffect(() => {
     if (!expandedViolationPhoto) return;
@@ -237,6 +242,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   const isDateInSchedule = (date: string) =>
     scheduleProjects.some((project) => isProjectActiveOnDate(project, date));
   const selectedDateIsInSchedule = isDateInSchedule(selectedDate);
+  const selectedDatePausePeriod = currentProject
+    ? getProjectPausePeriodForDate(currentProject, selectedDate)
+    : undefined;
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const visibleProjects = projects.filter((project) => {
     const matchesType = projectTypeFilter === 'all' || project.planTypeId === projectTypeFilter ||
@@ -434,6 +442,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   // Totals calculations
   const totalExcavation = filteredLogs.reduce((sum, r) => sum + (r.excavationTodayM || 0), 0);
   const totalChambersToday = filteredLogs.reduce((sum, r) => sum + (r.chambersPouredToday || 0), 0);
+  const totalRestoredToday = filteredLogs.reduce((sum, r) => sum + (r.restoredTodayM || 0), 0);
   const totalCumTrench = progressSummaryLogs.reduce((sum, r) => sum + (r.cumulativeTrenchM || 0), 0);
   const totalContractTrench = progressSummaryLogs.reduce((sum, r) => sum + (r.contractTrenchM || 0), 0);
   const trenchRate =
@@ -482,7 +491,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
   const reportedProjectIdsToday = new Set(todayLogs.map((l) => l.projectId));
   const unsubmittedProjectsToday = projects.filter(
     (project) => {
-      if (!isProjectActiveOnDate(project, TODAY_STR)) return false;
+      if (!isProjectReportableOnDate(project, TODAY_STR)) return false;
       const requiredContractors = (project.contractors || []).filter(
         (contractor) =>
           selectedContractorKey === 'all' ||
@@ -709,7 +718,21 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
         getContractorKey(log.contractorName) === selectedContractorKey
       );
 
-    if (dayLogs.length === 0) return { status: 'none', label: 'Chưa có báo cáo', count: 0, hasViolation: false };
+    if (dayLogs.length === 0) {
+      if (selectedProjectId !== 'all' && currentProject) {
+        const pausePeriod = getProjectPausePeriodForDate(currentProject, dateStr);
+        if (pausePeriod) {
+          return {
+            status: 'paused',
+            label: `Tạm ngưng: ${pausePeriod.reason}`,
+            reason: pausePeriod.reason,
+            count: 0,
+            hasViolation: false,
+          };
+        }
+      }
+      return { status: 'none', label: 'Chưa có báo cáo', count: 0, hasViolation: false };
+    }
 
     const hasObstacle = dayLogs.some(
       (log) => `${log.resources || ''} ${log.stoppageReason || ''}`.toLocaleLowerCase().includes('vướng')
@@ -837,9 +860,19 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                   </h2>
                 </div>
               </div>
-              <div className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-50 sm:px-3 sm:text-[11px]">
-                <Building2 className="h-3.5 w-3.5" />
-                <span>{visibleProjects.length}/{projects.length} dự án</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDailyReportModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-2.5 py-1.5 text-[11px] font-extrabold text-slate-950 shadow-xs transition hover:bg-amber-400 sm:px-3.5 sm:text-xs"
+                >
+                  <FileBarChart2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span>Xuất báo cáo ngày</span>
+                </button>
+                <div className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold text-blue-50">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>{visibleProjects.length}/{projects.length} dự án</span>
+                </div>
               </div>
             </div>
             <p className="mt-1.5 hidden max-w-2xl text-xs leading-relaxed text-blue-100 sm:block sm:text-sm">
@@ -900,12 +933,12 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 const expectedReportCount = project.contractors?.length || 1;
                 const allContractorsReported = todayReportCount >= expectedReportCount;
                 const hasAssignedContractor = hasAssignedProjectContractor(project);
-                const projectIsActive = isProjectActiveOnDate(project, TODAY_STR);
+                const projectIsActive = isProjectReportableOnDate(project, TODAY_STR);
                 const hasContractors = !!project.contractors?.length;
                 const isProjectExpanded = expandedProjectId === project.id;
                 const recentReportStatuses = Array.from({ length: 5 }, (_, offset) => {
                   const date = getPreviousDateKey(TODAY_STR, offset);
-                  if (!isProjectActiveOnDate(project, date)) return null;
+                  if (!isProjectReportableOnDate(project, date)) return null;
 
                   const dateLogs = dailyLogs.filter(
                     (log) => log.projectId === project.id && log.date === date
@@ -1219,6 +1252,18 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
             </div>
           )}
         </section>
+        {isDailyReportModalOpen && (
+          <DailyReportModal
+            key={`${selectedProjectId}-${selectedDate}`}
+            isOpen={isDailyReportModalOpen}
+            onClose={() => setIsDailyReportModalOpen(false)}
+            projects={allProjects}
+            planTypes={planTypes}
+            dailyLogs={dailyLogs}
+            initialProjectId={selectedProjectId}
+            initialDate={selectedDate}
+          />
+        )}
       </div>
     );
   }
@@ -1471,6 +1516,16 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                     ? 'Dự án đã kết thúc'
                     : 'Ngày ngoài kỳ triển khai'}
                 </div>
+              ) : selectedDatePausePeriod ? (
+                <div
+                  className="flex min-h-9 w-full cursor-not-allowed select-none items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-xs font-bold text-amber-800 sm:min-h-10 sm:w-auto"
+                  title={`Giai đoạn tạm ngưng: ${selectedDatePausePeriod.reason} (Không thể thêm, sửa hoặc xóa)`}
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+                  <span className="truncate">
+                    Tạm ngưng ({selectedDatePausePeriod.reason}) · Đã khóa
+                  </span>
+                </div>
               ) : !currentProjectHasAssignedContractor ? null : isSelectedDateFuture ? (
                 <div
                   className="flex min-h-9 w-full cursor-not-allowed select-none items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-center text-xs font-bold text-slate-400 sm:min-h-10 sm:w-auto"
@@ -1504,8 +1559,18 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
               )}
             </div>
 
-            {/* Secondary actions: 4 compact columns on mobile, row on tablet/desktop */}
-            <div className="grid grid-cols-4 gap-1.5 sm:flex sm:items-center sm:gap-1.5">
+            {/* Secondary actions: 5 compact columns on mobile, row on tablet/desktop */}
+            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsDailyReportModalOpen(true)}
+                className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] font-extrabold text-amber-900 transition-colors hover:bg-amber-100 sm:min-h-10 sm:rounded-xl sm:px-3 sm:text-xs"
+                title="Mở cửa sổ Báo cáo ngày hoàn chỉnh (Tổng thể hoặc từng tuyến)"
+              >
+                <FileBarChart2 className="w-3.5 h-3.5 shrink-0 text-amber-700" />
+                <span className="truncate">Xuất báo cáo</span>
+              </button>
+
               <button
                 onClick={handleCopyZalo}
                 disabled={!selectedDateIsInSchedule || filteredLogs.length === 0}
@@ -2211,6 +2276,26 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                                   getContractorKey(log.contractorName) === selectedContractorKey)
                             );
                             const log = dayLogs[0];
+                            const pausePeriod = !log ? getProjectPausePeriodForDate(proj, d.date) : undefined;
+                            if (pausePeriod) {
+                              return (
+                                <td
+                                  key={d.date}
+                                  className="p-2 border-r border-slate-200 text-center bg-amber-50/70"
+                                  title={`Tạm ngưng: ${pausePeriod.reason}`}
+                                >
+                                  <div className="space-y-0.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-center">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800">
+                                      <Lock className="h-2.5 w-2.5 shrink-0" />
+                                      Tạm ngưng
+                                    </span>
+                                    <p className="line-clamp-2 break-words text-[9px] font-medium text-amber-700">
+                                      {pausePeriod.reason}
+                                    </p>
+                                  </div>
+                                </td>
+                              );
+                            }
                             const isToday = d.isToday;
                             const isFuture = d.date > TODAY_STR;
 
@@ -2558,6 +2643,22 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                           <span className="sm:hidden rounded bg-amber-50 px-1 py-0.5 text-[8px]">Nghỉ</span>
                           <span className="hidden sm:inline">{dayStatus.label}</span>
                         </span>
+                      ) : dayStatus.status === 'paused' ? (
+                        <div
+                          className="flex min-h-4 sm:min-h-7 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded border border-amber-200/80 bg-amber-50 px-1.5 py-1 text-left cursor-not-allowed"
+                          title={dayStatus.label}
+                          aria-label={dayStatus.label}
+                        >
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800">
+                            <Lock className="hidden sm:inline h-2.5 w-2.5 shrink-0 text-amber-700" />
+                            <span className="truncate">Tạm ngưng</span>
+                          </span>
+                          {'reason' in dayStatus && dayStatus.reason && (
+                            <span className="hidden sm:block line-clamp-2 w-full break-words text-[8px] font-medium text-amber-700 leading-tight sm:text-[9px]">
+                              {dayStatus.reason}
+                            </span>
+                          )}
+                        </div>
                       ) : dayStatus.status === 'none' ? (
                         isFuture ? (
                           /* CHƯA ĐẾN NGÀY: ẨN ĐI NÚT BÁO CÁO */
@@ -2804,6 +2905,14 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                             {formatNumber(row.cumulativeChambers)} / {formatNumber(row.contractChambers)} hầm
                           </dd>
                         </div>
+                        {(row.restoredTodayM || 0) > 0 && (
+                          <div className="col-span-2 rounded-lg bg-teal-50/60 px-2.5 py-1.5 border border-teal-100/80 flex items-center justify-between">
+                            <dt className="text-[10px] text-teal-800 font-semibold">Hoàn trả thảm ngày</dt>
+                            <dd className="font-mono text-xs font-bold text-teal-900">
+                              {formatNumber(row.restoredTodayM || 0)} m
+                            </dd>
+                          </div>
+                        )}
                       </dl>
 
                       {violation?.hasViolation && (
@@ -2873,6 +2982,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                     <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-300 w-24">
                       Khối Lượng Đổ Hố Ga / Ngày
                     </th>
+                    <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-300 w-24">
+                      Hoàn Trả Thảm / Ngày (m)
+                    </th>
                     <th colSpan={3} className="py-2 px-2 border-r border-slate-300 bg-slate-200">
                       Khối Lượng Mương Cáp (Lắp ống)
                     </th>
@@ -2896,7 +3008,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                 <tbody className="divide-y divide-slate-200 font-medium">
                   {filteredLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="text-center py-10 text-slate-400">
+                      <td colSpan={13} className="text-center py-10 text-slate-400">
                         Chưa có nhật ký cho ngày này.{' '}
                         {!selectedDateIsInSchedule ? (
                           <span className="text-slate-400 italic">
@@ -3081,6 +3193,13 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                               <span className="text-slate-400">-</span>
                             )}
                           </td>
+                          <td className="py-2.5 px-2 text-center border-r border-slate-200 font-mono">
+                            {(row.restoredTodayM || 0) > 0 ? (
+                              <span className="font-bold text-teal-800">{formatNumber(row.restoredTodayM || 0)}</span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-2.5 text-right border-r border-slate-200 font-mono text-slate-700">
                             {formatNumber(row.cumulativeTrenchM)}
                           </td>
@@ -3097,26 +3216,42 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                             {formatNumber(row.contractChambers)}
                           </td>
                           <td className="py-2.5 px-2 text-center">
-                            {isAdmin ? (
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={() => onEditLog(row)}
-                                  className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
-                                  title="Chỉnh sửa dòng này"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => onDeleteLog(row.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
-                                  title="Xóa dòng này"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-300 text-[10px] italic">Chỉ xem</span>
-                            )}
+                            {(() => {
+                              const rowProject = projectById.get(row.projectId);
+                              const isPausedRow =
+                                rowProject && getProjectPausePeriodForDate(rowProject, row.date);
+                              if (isPausedRow) {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200"
+                                    title={`Đã khóa (Tạm ngưng: ${isPausedRow.reason})`}
+                                  >
+                                    <Lock className="h-3 w-3" />
+                                    Khóa
+                                  </span>
+                                );
+                              }
+                              return isAdmin ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => onEditLog(row)}
+                                    className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                    title="Chỉnh sửa dòng này"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => onDeleteLog(row.id)}
+                                    className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                                    title="Xóa dòng này"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 text-[10px] italic">Chỉ xem</span>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );
@@ -3136,6 +3271,9 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
                       </td>
                       <td className="py-2.5 px-2 text-center border-r border-slate-300 font-mono">
                         {formatNumber(totalChambersToday)}
+                      </td>
+                      <td className="py-2.5 px-2 text-center border-r border-slate-300 font-mono text-teal-800">
+                        {formatNumber(totalRestoredToday)}
                       </td>
                       <td className="py-2.5 px-2.5 text-right border-r border-slate-300 font-mono">
                         {formatNumber(totalCumTrench)}
@@ -3280,6 +3418,18 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
           </div>,
           document.body
         )}
+      {isDailyReportModalOpen && (
+        <DailyReportModal
+          key={`${selectedProjectId}-${selectedDate}`}
+          isOpen={isDailyReportModalOpen}
+          onClose={() => setIsDailyReportModalOpen(false)}
+          projects={allProjects}
+          planTypes={planTypes}
+          dailyLogs={dailyLogs}
+          initialProjectId={selectedProjectId}
+          initialDate={selectedDate}
+        />
+      )}
     </div>
   );
 };
