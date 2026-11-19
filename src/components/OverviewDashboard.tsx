@@ -1537,7 +1537,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 <div>
                   <span className="text-slate-500 block text-[10px]">Tiến Độ Mương:</span>
                   <strong className="text-sm font-mono text-blue-600">
-                    {formatNumber(totalCompletedLengthM)}m ({overallLengthPercent}%)
+                    {formatNumber(totalCompletedLengthM)}/{formatNumber(totalSystemLengthM)}m ({overallLengthPercent}%)
                   </strong>
                 </div>
                 <div>

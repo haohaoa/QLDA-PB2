@@ -3,12 +3,16 @@ const DATA_SHEETS = Object.freeze({
   dailyLogs: 'DailyLogs',
   bulletins: 'Bulletins',
   planTypes: 'PlanTypes',
+  projectDocuments: 'ProjectDocuments',
+  documentTypes: 'DocumentTypes',
 });
 const MAX_CELL_LENGTH = 49000;
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_DOC_SIZE_BYTES = 15 * 1024 * 1024;
 const EDIT_SESSION_TTL_SECONDS = 21600;
 const PLACE_SEARCH_CACHE_TTL_SECONDS = 21600;
 const IMAGE_FOLDER_NAME = 'QLDA - Ảnh sai phạm';
+const DOC_FOLDER_NAME = 'QLDA - Hồ Sơ Ngầm Hóa';
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 function searchPlaces(query) {
@@ -190,6 +194,20 @@ function doPost(e) {
       });
     }
   }
+  if (action === 'uploadProjectDocumentFile' || action === 'deleteProjectDocumentFile') {
+    try {
+      assertEditSession_(request.sessionToken);
+      const result = action === 'uploadProjectDocumentFile'
+        ? uploadProjectDocumentFile(request.base64Data, request.fileName, request.mimeType, request.sessionToken)
+        : deleteProjectDocumentFile(request.fileId, request.sessionToken);
+      return createJsonResponse_({ success: true, data: result });
+    } catch (error) {
+      return createJsonResponse_({
+        success: false,
+        error: error && error.message ? error.message : 'Không thể xử lý tệp hồ sơ trên Google Drive.',
+      });
+    }
+  }
   try {
     const data = handleDatabaseWrite_(request);
     if (request.table === DATA_SHEETS.dailyLogs && request.action !== 'syncDatabase') {
@@ -220,6 +238,25 @@ function runDatabaseApiAction(request) {
       return {
         success: true,
         data: migrateInlineImagesInDatabase_(request.sessionToken),
+      };
+    }
+    if (action === 'uploadProjectDocumentFile') {
+      assertEditSession_(request.sessionToken);
+      return {
+        success: true,
+        data: uploadProjectDocumentFile(
+          request.base64Data,
+          request.fileName,
+          request.mimeType,
+          request.sessionToken
+        ),
+      };
+    }
+    if (action === 'deleteProjectDocumentFile') {
+      assertEditSession_(request.sessionToken);
+      return {
+        success: true,
+        data: deleteProjectDocumentFile(request.fileId, request.sessionToken),
       };
     }
     if (action === 'getDatabase') {
@@ -834,6 +871,8 @@ function getAppData(sessionToken) {
     dailyLogs: dailyLogs,
     bulletins: readCollection_(spreadsheet, DATA_SHEETS.bulletins),
     planTypes: readCollection_(spreadsheet, DATA_SHEETS.planTypes),
+    projectDocuments: readCollection_(spreadsheet, DATA_SHEETS.projectDocuments),
+    documentTypes: readCollection_(spreadsheet, DATA_SHEETS.documentTypes),
     isInitialized: properties.getProperty('DATA_INITIALIZED') === 'true',
     canWrite: canWrite,
     revision: getDataRevision_(properties),
@@ -866,6 +905,32 @@ function deleteViolationImage(fileId, sessionToken) {
   }
 
   return deleteManagedViolationImage_(fileId);
+}
+
+function uploadProjectDocumentFile(base64Data, fileName, mimeType, sessionToken) {
+  assertEditSession_(sessionToken);
+  if (typeof base64Data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64Data)) {
+    throw new Error('Dữ liệu tệp hồ sơ không hợp lệ.');
+  }
+
+  const bytes = Utilities.base64Decode(base64Data);
+  if (bytes.length === 0) {
+    throw new Error('Tệp hồ sơ rỗng.');
+  }
+  return saveDocumentToDrive_(
+    bytes,
+    fileName,
+    typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'application/octet-stream'
+  );
+}
+
+function deleteProjectDocumentFile(fileId, sessionToken) {
+  assertEditSession_(sessionToken);
+  if (typeof fileId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(fileId)) {
+    throw new Error('Mã tệp Google Drive không hợp lệ.');
+  }
+
+  return deleteManagedDocumentFile_(fileId);
 }
 
 function saveAppData(data, sessionToken, expectedRevision) {
@@ -966,6 +1031,68 @@ function saveImageToDrive_(bytes, fileName, mimeType) {
     url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1600',
     fileId: file.getId(),
   };
+}
+
+function getOrCreateDocumentFolder_() {
+  const properties = PropertiesService.getScriptProperties();
+  const folderId = properties.getProperty('DOC_FOLDER_ID');
+  if (folderId) {
+    try {
+      const existing = DriveApp.getFolderById(folderId);
+      if (!existing.isTrashed()) {
+        existing.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        return existing;
+      }
+    } catch (e) {}
+  }
+
+  const existingByName = DriveApp.getFoldersByName(DOC_FOLDER_NAME);
+  const folder = existingByName.hasNext()
+    ? existingByName.next()
+    : DriveApp.createFolder(DOC_FOLDER_NAME);
+  folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  properties.setProperty('DOC_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function saveDocumentToDrive_(bytes, fileName, mimeType) {
+  const cleanName = String(fileName || 'ho-so-du-an')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .trim()
+    .slice(-120) || 'ho-so-du-an';
+  const dotIndex = cleanName.lastIndexOf('.');
+  const baseName = dotIndex > 0 ? cleanName.slice(0, dotIndex) : cleanName;
+  const ext = dotIndex > 0 ? cleanName.slice(dotIndex) : '';
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'ddMMyyyy_HHmmss_SSS');
+  const uniqueName = baseName + '_' + stamp + ext;
+  const file = getOrCreateDocumentFolder_().createFile(
+    Utilities.newBlob(bytes, mimeType, uniqueName)
+  );
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return {
+    url: 'https://drive.google.com/file/d/' + file.getId() + '/view',
+    fileId: file.getId(),
+    fileName: file.getName(),
+  };
+}
+
+function deleteManagedDocumentFile_(fileId) {
+  const folderId = PropertiesService.getScriptProperties().getProperty('DOC_FOLDER_ID');
+  if (!folderId) return false;
+
+  const file = DriveApp.getFileById(fileId);
+  const parents = file.getParents();
+  let belongsToDocFolder = false;
+  while (parents.hasNext()) {
+    if (parents.next().getId() === folderId) {
+      belongsToDocFolder = true;
+      break;
+    }
+  }
+  if (!belongsToDocFolder) return false;
+
+  file.setTrashed(true);
+  return true;
 }
 
 function deleteManagedViolationImage_(fileId, requireManagedFolder) {

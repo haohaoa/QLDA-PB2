@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Map,
   FolderPlus,
+  FolderOpen,
   Menu,
   X,
   ChevronRight,
@@ -14,7 +15,13 @@ import {
   LogOut,
   ShieldCheck,
 } from 'lucide-react';
-export type MainNavTab = 'overview' | 'daily-report' | 'gis-map' | 'bulletins' | 'project-management';
+export type MainNavTab =
+  | 'overview'
+  | 'daily-report'
+  | 'gis-map'
+  | 'bulletins'
+  | 'documents'
+  | 'project-management';
 
 interface SidebarProps {
   currentTab: MainNavTab;
@@ -86,6 +93,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: bulletinsCount > 0 ? `${bulletinsCount} tin` : undefined,
       badgeAmber: true,
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'documents' as MainNavTab,
+            label: 'Hồ sơ dự án',
+            mobileLabel: 'Hồ sơ',
+            sublabel: 'Tài liệu & pháp lý (Admin)',
+            icon: FolderOpen,
+            badge: undefined,
+          },
+        ]
+      : []),
     {
       id: 'project-management' as MainNavTab,
       label: 'Quản lý dự án',

@@ -35,6 +35,50 @@ export function getCurrentDateKey(): string {
   return toDateKey(new Date());
 }
 
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match || !Number.isFinite(days)) return '';
+  const dt = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  dt.setDate(dt.getDate() + Math.trunc(days));
+  return toDateKey(dt);
+}
+
+export function diffDaysBetweenDateKeys(startDateKey: string, endDateKey: string): number | null {
+  const m1 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDateKey);
+  const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(endDateKey);
+  if (!m1 || !m2) return null;
+  const utc1 = Date.UTC(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3]));
+  const utc2 = Date.UTC(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+  return Math.round((utc2 - utc1) / 86400000);
+}
+
+export interface ProjectDeadlineAlert {
+  daysRemaining: number;
+  isOverdue: boolean;
+}
+
+export function getProjectDeadlineAlert(
+  project: UndergroundProject,
+  today: string,
+  thresholdDays = 15
+): ProjectDeadlineAlert | null {
+  if (project.status === 'completed' || !project.finishDate) return null;
+  const hasAnyTarget = project.totalLengthM > 0 || project.totalChambers > 0;
+  const isVolumeCompleted =
+    hasAnyTarget &&
+    (project.totalLengthM <= 0 || project.completedLengthM >= project.totalLengthM) &&
+    (project.totalChambers <= 0 || project.completedChambers >= project.totalChambers);
+  if (isVolumeCompleted) return null;
+
+  const daysRemaining = diffDaysBetweenDateKeys(today, project.finishDate);
+  if (daysRemaining === null || daysRemaining > thresholdDays) return null;
+
+  return {
+    daysRemaining,
+    isOverdue: daysRemaining < 0,
+  };
+}
+
 function formatShortDate(date: string): string {
   const [, month, day] = date.split('-');
   return `${day}/${month}`;

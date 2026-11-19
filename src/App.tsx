@@ -5,12 +5,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AlertTriangle } from 'lucide-react';
 import { Sidebar, MainNavTab } from './components/Sidebar';
 import { OverviewDashboard } from './components/OverviewDashboard';
 import { ProjectDailyReport } from './components/ProjectDailyReport';
 import { GisMap } from './components/GisMap';
 import { BulletinsBoard } from './components/BulletinsBoard';
 import { ProjectManagement } from './components/ProjectManagement';
+import { ProjectDocumentsPage } from './components/ProjectDocumentsPage';
 import { SupervisorFormModal } from './components/SupervisorFormModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { useAppDialog } from './components/AppDialogProvider';
@@ -20,7 +22,15 @@ import {
   INITIAL_BULLETINS,
   INITIAL_PLAN_TYPES,
 } from './data/initialData';
-import { UndergroundProject, DailyLogDraft, DailyLogEntry, PlanType, SiteBulletin } from './types/undergrounding';
+import {
+  UndergroundProject,
+  DailyLogDraft,
+  DailyLogEntry,
+  PlanType,
+  ProjectDocument,
+  ProjectDocumentType,
+  SiteBulletin,
+} from './types/undergrounding';
 import {
   applyDailyLogProgressChange,
   applyDailyLogProgressChanges,
@@ -31,6 +41,7 @@ import {
   synchronizeProjectProgress,
 } from './utils/progressUtils';
 import {
+  deleteProjectDocumentFile,
   deleteRow,
   fetchDatabase,
   findLegacyAppData,
@@ -44,6 +55,7 @@ import {
 } from './utils/appDataStorage';
 import {
   getCurrentDateKey,
+  getProjectDeadlineAlert,
   getProjectPausePeriodForDate,
   isProjectActiveOnDate,
   isProjectReportableOnDate,
@@ -167,6 +179,8 @@ export default function App() {
   );
   const [dailyLogs, setDailyLogs] = useState<DailyLogEntry[]>(INITIAL_DAILY_LOGS);
   const [bulletins, setBulletins] = useState<SiteBulletin[]>(INITIAL_BULLETINS);
+  const [projectDocuments, setProjectDocuments] = useState<ProjectDocument[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<ProjectDocumentType[]>([]);
   const [planTypes, setPlanTypes] = useState<PlanType[]>(() =>
     includeUnclassifiedPlanType(INITIAL_PLAN_TYPES, INITIAL_PROJECTS)
   );
@@ -233,6 +247,8 @@ export default function App() {
         setDailyLogs(loadedDailyLogs);
         setProjects(synchronizeProjectProgress(normalizedProjects, loadedDailyLogs));
         setBulletins(useInitialData ? INITIAL_BULLETINS : data.bulletins);
+        setProjectDocuments(data.projectDocuments || []);
+        setDocumentTypes(data.documentTypes || []);
         setPlanTypes(includeUnclassifiedPlanType(loadedPlanTypes, normalizedProjects));
         setCanWriteData(data.canWrite);
         if (!data.canWrite && sessionToken) {
@@ -272,7 +288,13 @@ export default function App() {
     }
   };
   const persistRows = async <T extends { id: string },>(
-    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    table:
+      | 'projects'
+      | 'dailyLogs'
+      | 'bulletins'
+      | 'planTypes'
+      | 'projectDocuments'
+      | 'documentTypes',
     rows: T[]
   ) => {
     if (!usesRemoteDatabase || rows.length === 0) return;
@@ -280,7 +302,13 @@ export default function App() {
     await withDataWrite(() => saveBatch(table, rows, sessionToken));
   };
   const persistRow = async <T extends { id: string },>(
-    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    table:
+      | 'projects'
+      | 'dailyLogs'
+      | 'bulletins'
+      | 'planTypes'
+      | 'projectDocuments'
+      | 'documentTypes',
     row: T
   ) => {
     if (!usesRemoteDatabase) return;
@@ -288,7 +316,13 @@ export default function App() {
     await withDataWrite(() => saveRow(table, row, sessionToken));
   };
   const persistDelete = async (
-    table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+    table:
+      | 'projects'
+      | 'dailyLogs'
+      | 'bulletins'
+      | 'planTypes'
+      | 'projectDocuments'
+      | 'documentTypes',
     id: string
   ) => {
     if (!usesRemoteDatabase) return;
@@ -889,6 +923,150 @@ export default function App() {
       : 'content'
   }`;
 
+  useEffect(() => {
+    if (!isAdmin && currentTab === 'documents') {
+      setCurrentTab('overview');
+    }
+  }, [isAdmin, currentTab]);
+
+  const handleSaveProjectDocument = async (
+    doc: ProjectDocument,
+    removedFileIds?: string[]
+  ): Promise<boolean> => {
+    if (!isAdmin) return false;
+    const isEditing = projectDocuments.some((d) => d.id === doc.id);
+    const previous = projectDocuments;
+    setProjectDocuments((prev) =>
+      isEditing ? prev.map((d) => (d.id === doc.id ? doc : d)) : [doc, ...prev]
+    );
+    try {
+      await persistRow('projectDocuments', doc);
+      const idsToDelete = [...new Set((removedFileIds || []).filter(Boolean))];
+      await Promise.all(
+        idsToDelete.map((fid) =>
+          deleteProjectDocumentFile(fid, sessionToken || undefined).catch(() => undefined)
+        )
+      );
+      return true;
+    } catch (error) {
+      setProjectDocuments(previous);
+      throw error;
+    }
+  };
+
+  const handleDeleteProjectDocument = async (doc: ProjectDocument): Promise<boolean> => {
+    if (!isAdmin) return false;
+    if (!(await confirmChange(`xóa hồ sơ “${doc.title}”`))) return false;
+    const previous = projectDocuments;
+    setProjectDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+    try {
+      await persistDelete('projectDocuments', doc.id);
+      const fileIds = [
+        ...(doc.files || []).map((f) => f.fileId),
+        ...(doc.fileId ? [doc.fileId] : []),
+      ].filter(Boolean);
+      await Promise.all(
+        [...new Set(fileIds)].map((fid) =>
+          deleteProjectDocumentFile(fid, sessionToken || undefined).catch(() => undefined)
+        )
+      );
+      return true;
+    } catch (error) {
+      setProjectDocuments(previous);
+      throw error;
+    }
+  };
+
+  const handleAddDocumentType = async (name: string): Promise<ProjectDocumentType | null> => {
+    if (!isAdmin) return null;
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    if (
+      documentTypes.some(
+        (t) => t.name.trim().toLocaleLowerCase('vi') === trimmed.toLocaleLowerCase('vi')
+      )
+    ) {
+      await showAlert('Loại hồ sơ này đã tồn tại.');
+      return null;
+    }
+    const newType: ProjectDocumentType = {
+      id: `doc-type-${crypto.randomUUID()}`,
+      name: trimmed,
+    };
+    const previous = documentTypes;
+    setDocumentTypes((prev) => [...prev, newType]);
+    try {
+      await persistRow('documentTypes', newType);
+      return newType;
+    } catch (error) {
+      setDocumentTypes(previous);
+      throw error;
+    }
+  };
+
+  const handleUpdateDocumentType = async (
+    docType: ProjectDocumentType
+  ): Promise<boolean> => {
+    if (!isAdmin) return false;
+    const trimmed = docType.name.trim();
+    if (!trimmed) return false;
+    if (
+      documentTypes.some(
+        (t) =>
+          t.id !== docType.id &&
+          t.name.trim().toLocaleLowerCase('vi') === trimmed.toLocaleLowerCase('vi')
+      )
+    ) {
+      await showAlert('Tên loại hồ sơ này đã tồn tại.');
+      return false;
+    }
+    const updatedType = { ...docType, name: trimmed };
+    const previousTypes = documentTypes;
+    const previousDocs = projectDocuments;
+    const affectedDocs = projectDocuments
+      .filter((d) => d.category === docType.id)
+      .map((d) => ({ ...d, categoryLabel: trimmed }));
+
+    setDocumentTypes((prev) => prev.map((t) => (t.id === docType.id ? updatedType : t)));
+    if (affectedDocs.length > 0) {
+      setProjectDocuments((prev) =>
+        prev.map((d) => (d.category === docType.id ? { ...d, categoryLabel: trimmed } : d))
+      );
+    }
+    try {
+      await persistRow('documentTypes', updatedType);
+      if (affectedDocs.length > 0) {
+        await persistRows('projectDocuments', affectedDocs);
+      }
+      return true;
+    } catch (error) {
+      setDocumentTypes(previousTypes);
+      setProjectDocuments(previousDocs);
+      throw error;
+    }
+  };
+
+  const handleDeleteDocumentType = async (docType: ProjectDocumentType): Promise<boolean> => {
+    if (!isAdmin) return false;
+    const usedCount = projectDocuments.filter((d) => d.category === docType.id).length;
+    if (usedCount > 0) {
+      await showAlert(
+        `Loại hồ sơ “${docType.name}” đang có ${usedCount} tài liệu. Hãy xóa hoặc chuyển các tài liệu đó sang loại khác trước.`
+      );
+      return false;
+    }
+    if (!(await confirmChange(`xóa loại hồ sơ “${docType.name}”`))) return false;
+    const previous = documentTypes;
+    setDocumentTypes((prev) => prev.filter((t) => t.id !== docType.id));
+    try {
+      await persistDelete('documentTypes', docType.id);
+      return true;
+    } catch (error) {
+      setDocumentTypes(previous);
+      throw error;
+    }
+  };
+
   if (usesRemoteDatabase && !isDataLoaded && !dataLoadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600">
@@ -976,6 +1154,78 @@ export default function App() {
               )}
             </div>
           )}
+
+          {isAdmin && (() => {
+            const urgentProjects = projects
+              .map((project) => ({
+                project,
+                alert: getProjectDeadlineAlert(project, today),
+              }))
+              .filter(
+                (
+                  item
+                ): item is {
+                  project: UndergroundProject;
+                  alert: NonNullable<ReturnType<typeof getProjectDeadlineAlert>>;
+                } => item.alert !== null
+              )
+              .sort((a, b) => a.alert.daysRemaining - b.alert.daysRemaining);
+
+            if (urgentProjects.length === 0) return null;
+
+            return (
+              <div
+                role="alert"
+                className="mb-4 rounded-2xl border-2 border-red-400 bg-red-50 px-4 py-3 text-red-900 shadow-sm"
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-red-800">
+                      Cảnh báo hạn thi công (≤ 15 ngày): {urgentProjects.length} dự án chưa hoàn tất — Cần cập nhật hồ sơ gia hạn hoặc đôn đốc đối tác
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {urgentProjects.map(({ project, alert }) => {
+                        const pct =
+                          project.totalLengthM > 0
+                            ? Math.min(
+                                100,
+                                Math.round(
+                                  (project.completedLengthM / project.totalLengthM) * 100
+                                )
+                              )
+                            : 0;
+                        return (
+                          <button
+                            key={project.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedProjectId(project.id);
+                              setCurrentTab('daily-report');
+                            }}
+                            className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-left text-xs font-bold text-red-800 hover:bg-red-100/70 transition-colors"
+                          >
+                            <span className="font-mono text-[11px] text-red-600">
+                              [{project.code}]
+                            </span>
+                            <span>{project.name}</span>
+                            <span className="rounded bg-red-600 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-white">
+                              {alert.isOverdue
+                                ? `Quá hạn ${Math.abs(alert.daysRemaining)} ngày`
+                                : `Còn ${alert.daysRemaining} ngày`}
+                            </span>
+                            <span className="font-mono text-[11px] text-red-700">
+                              ({pct}% · Hạn {project.finishDate.split('-').reverse().join('/')})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -1098,6 +1348,24 @@ export default function App() {
               isAdmin={isAdmin}
               filterInitialProjectId={selectedProjectId}
               onOpenLogin={() => setIsLoginModalOpen(true)}
+            />
+          )}
+
+          {/* TAB 4.5: HỒ SƠ DỰ ÁN (Chỉ Admin được quyền xem, thêm, sửa, xóa) */}
+          {currentTab === 'documents' && isAdmin && (
+            <ProjectDocumentsPage
+              isAdmin={isAdmin}
+              projects={projects}
+              documents={projectDocuments}
+              documentTypes={documentTypes}
+              sessionToken={sessionToken || undefined}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={(projectId) => setSelectedProjectId(projectId)}
+              onSaveDocument={handleSaveProjectDocument}
+              onDeleteDocument={handleDeleteProjectDocument}
+              onAddDocumentType={handleAddDocumentType}
+              onUpdateDocumentType={handleUpdateDocumentType}
+              onDeleteDocumentType={handleDeleteDocumentType}
             />
           )}
 

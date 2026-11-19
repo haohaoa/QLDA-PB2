@@ -1,4 +1,11 @@
-import { DailyLogEntry, PlanType, SiteBulletin, UndergroundProject } from '../types/undergrounding';
+import {
+  DailyLogEntry,
+  PlanType,
+  ProjectDocument,
+  ProjectDocumentType,
+  SiteBulletin,
+  UndergroundProject,
+} from '../types/undergrounding';
 import { getGoogleDriveFileId } from './driveImageUtils';
 
 export interface AppDataToSave {
@@ -6,6 +13,8 @@ export interface AppDataToSave {
   dailyLogs: DailyLogEntry[];
   bulletins: SiteBulletin[];
   planTypes: PlanType[];
+  projectDocuments?: ProjectDocument[];
+  documentTypes?: ProjectDocumentType[];
 }
 
 export interface AppDataSnapshot extends AppDataToSave {
@@ -20,6 +29,8 @@ interface GoogleAppsScriptRunner {
   runDatabaseApiAction(request: unknown): void;
   uploadViolationImage(base64Data: string, fileName: string, mimeType: string, sessionToken: string): void;
   deleteViolationImage(fileId: string, sessionToken: string): void;
+  uploadProjectDocumentFile(base64Data: string, fileName: string, mimeType: string, sessionToken: string): void;
+  deleteProjectDocumentFile(fileId: string, sessionToken: string): void;
   verifyEditPassword(password: string): void;
   searchPlaces(query: string): void;
 }
@@ -51,6 +62,8 @@ const TABLE_NAMES = {
   dailyLogs: 'DailyLogs',
   bulletins: 'Bulletins',
   planTypes: 'PlanTypes',
+  projectDocuments: 'ProjectDocuments',
+  documentTypes: 'DocumentTypes',
 } as const;
 
 export type AppDataTable = keyof typeof TABLE_NAMES;
@@ -201,11 +214,19 @@ export const fetchDatabase = async (sessionToken?: string): Promise<AppDataSnaps
     throw new Error('Google Sheets trả về cơ sở dữ liệu không hợp lệ.');
   }
   const tables = response as unknown as Record<string, unknown>;
+  const rawDocs = tables[TABLE_NAMES.projectDocuments];
+  const rawDocTypes = tables[TABLE_NAMES.documentTypes];
   return {
     projects: readTable<UndergroundProject>(tables, 'projects'),
     dailyLogs: readTable<DailyLogEntry>(tables, 'dailyLogs'),
     bulletins: readTable<SiteBulletin>(tables, 'bulletins'),
     planTypes: readTable<PlanType>(tables, 'planTypes'),
+    projectDocuments: Array.isArray(rawDocs)
+      ? (rawDocs.filter(isRecordWithId) as ProjectDocument[])
+      : [],
+    documentTypes: Array.isArray(rawDocTypes)
+      ? (rawDocTypes.filter(isRecordWithId) as ProjectDocumentType[])
+      : [],
     canWrite: session.canWrite === true,
     isInitialized: response.isInitialized === true,
   };
@@ -469,6 +490,92 @@ export const deleteViolationImage = (
       .withSuccessHandler(() => resolve())
       .withFailureHandler((error) => reject(normalizeAppsScriptError(error)))
       .deleteViolationImage(fileId, sessionToken);
+  });
+};
+
+export const uploadProjectDocumentFile = async (
+  file: File,
+  sessionToken?: string
+): Promise<{ url: string; fileId: string; fileName: string }> => {
+  if (file.size === 0) {
+    throw new Error('Tệp hồ sơ rỗng, không thể tải lên.');
+  }
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const runner = getAppsScriptRunner();
+  if (!runner && !isRemoteDatabaseConfigured()) {
+    return { url: dataUrl, fileId: '', fileName: file.name };
+  }
+  if (!sessionToken) {
+    throw new Error('Hãy đăng nhập tài khoản Admin trước khi tải hồ sơ lên Google Drive.');
+  }
+
+  const match = dataUrl.match(/^data:([^;]*);base64,(.+)$/);
+  if (!match) throw new Error('Không thể xử lý dữ liệu tệp hồ sơ đã chọn.');
+  const mimeType = match[1] || file.type || 'application/octet-stream';
+  const base64Data = match[2];
+
+  if (!runner) {
+    const result = await getApiResult<{ url: string; fileId: string; fileName: string }>(
+      'uploadProjectDocumentFile',
+      {
+        base64Data,
+        fileName: file.name,
+        mimeType,
+        sessionToken,
+      }
+    );
+    if (typeof result.url !== 'string') {
+      throw new Error('Apps Script trả về liên kết hồ sơ không hợp lệ.');
+    }
+    return result;
+  }
+
+  return new Promise((resolve, reject) => {
+    runner
+      .withSuccessHandler((value) => {
+        if (
+          typeof value !== 'object' ||
+          value === null ||
+          !('url' in value) ||
+          typeof value.url !== 'string'
+        ) {
+          reject(new Error('Apps Script trả về liên kết hồ sơ không hợp lệ.'));
+          return;
+        }
+        const typed = value as { url: string; fileId?: string; fileName?: string };
+        resolve({
+          url: typed.url,
+          fileId: typed.fileId || '',
+          fileName: typed.fileName || file.name,
+        });
+      })
+      .withFailureHandler((error) => reject(normalizeAppsScriptError(error)))
+      .uploadProjectDocumentFile(base64Data, file.name, mimeType, sessionToken);
+  });
+};
+
+export const deleteProjectDocumentFile = (
+  fileId?: string,
+  sessionToken?: string
+): Promise<void> => {
+  const runner = getAppsScriptRunner();
+  if (!fileId || (!runner && !isRemoteDatabaseConfigured())) return Promise.resolve();
+  if (!sessionToken) {
+    return Promise.reject(new Error('Hãy đăng nhập tài khoản Admin để xóa tệp trên Google Drive.'));
+  }
+
+  if (!runner) {
+    return getApiResult('deleteProjectDocumentFile', { fileId, sessionToken }).then(
+      () => undefined
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    runner
+      .withSuccessHandler(() => resolve())
+      .withFailureHandler((error) => reject(normalizeAppsScriptError(error)))
+      .deleteProjectDocumentFile(fileId, sessionToken);
   });
 };
 

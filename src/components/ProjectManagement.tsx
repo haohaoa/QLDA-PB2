@@ -13,9 +13,14 @@ import { RouteCoordinatePicker } from './RouteCoordinatePicker';
 import { ProjectContractorsPanel } from './ProjectContractorsPanel';
 import { useAppDialog } from './AppDialogProvider';
 import { formatNumber } from '../utils/numberFormat';
-import { generateProjectCode } from '../utils/projectCode';
-import { getCurrentDateKey } from '../utils/scheduleUtils';
 import {
+  addDaysToDateKey,
+  diffDaysBetweenDateKeys,
+  getCurrentDateKey,
+  getProjectDeadlineAlert,
+} from '../utils/scheduleUtils';
+import {
+  AlertTriangle,
   FolderPlus,
   Plus,
   Trash2,
@@ -99,10 +104,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
   // Form State — Empty by default so user chooses everything from scratch
   const [name, setName] = useState('');
+  const [contractCode, setContractCode] = useState('');
   const [planTypeId, setPlanTypeId] = useState(planTypes[0]?.id || '');
   const [investor, setInvestor] = useState('');
   const [contractValueVND, setContractValueVND] = useState<number>(0);
   const [startDate, setStartDate] = useState('');
+  const [contractDurationDays, setContractDurationDays] = useState('');
   const [finishDate, setFinishDate] = useState('');
   const [startPointName, setStartPointName] = useState('');
   const [endPointName, setEndPointName] = useState('');
@@ -288,10 +295,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
   const resetForm = () => {
     setName('');
+    setContractCode('');
     setPlanTypeId(planTypes[0]?.id || '');
     setInvestor('');
     setContractValueVND(0);
     setStartDate('');
+    setContractDurationDays('');
     setFinishDate('');
     setStartPointName('');
     setEndPointName('');
@@ -313,6 +322,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setFormError('Vui lòng nhập Tên Dự Án Ngầm.');
       return false;
     }
+    if (!contractCode.trim()) {
+      setFormError('Vui lòng nhập Mã Hợp Đồng (Mã dự án).');
+      return false;
+    }
     if (!planTypeId) {
       setFormError('Vui lòng chọn Loại kế hoạch.');
       return false;
@@ -321,12 +334,17 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setFormError('Vui lòng nhập Chủ đầu tư.');
       return false;
     }
-    if (!startDate || !finishDate) {
-      setFormError('Vui lòng chọn Ngày bắt đầu và Ngày hoàn tất.');
+    if (!startDate) {
+      setFormError('Vui lòng chọn Ngày khởi công.');
+      return false;
+    }
+    const durationNum = Number(contractDurationDays);
+    if (!finishDate || (!Number.isFinite(durationNum) && !finishDate)) {
+      setFormError('Vui lòng nhập Số ngày thi công theo hợp đồng (VD: 150) để tính Ngày kết thúc.');
       return false;
     }
     if (finishDate < startDate) {
-      setFormError('Ngày hoàn tất phải sau hoặc bằng Ngày bắt đầu.');
+      setFormError('Ngày kết thúc phải sau hoặc bằng Ngày khởi công.');
       return false;
     }
     setFormError(null);
@@ -420,9 +438,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
           );
           return;
         }
+        const parsedDuration =
+          contractDurationDays.trim() !== '' && Number.isFinite(Number(contractDurationDays))
+            ? Math.max(0, Math.trunc(Number(contractDurationDays)))
+            : diffDaysBetweenDateKeys(startDate, finishDate) ?? undefined;
         const updated: UndergroundProject = {
           ...existing,
           name: name.trim(),
+          code: contractCode.trim(),
           planTypeId,
           investor: investor.trim(),
           contractor: updatedContractors.length
@@ -431,6 +454,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
           contractValueVND: Number(contractValueVND) || 0,
           startDate,
           finishDate,
+          contractDurationDays: parsedDuration,
           totalLengthM: updatedContractors.length
             ? updatedContractors.reduce((sum, item) => sum + item.totalLengthM, 0)
             : existing.totalLengthM,
@@ -446,7 +470,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         setSavedNotice(`Đã cập nhật dự án: ${name}`);
       }
     } else {
-      const code = generateProjectCode(name.trim());
+      const code = contractCode.trim();
+      const parsedDuration =
+        contractDurationDays.trim() !== '' && Number.isFinite(Number(contractDurationDays))
+          ? Math.max(0, Math.trunc(Number(contractDurationDays)))
+          : diffDaysBetweenDateKeys(startDate, finishDate) ?? undefined;
       const newProject: UndergroundProject = {
         id: `prj-${Date.now()}`,
         status: 'in_progress',
@@ -458,6 +486,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         contractValueVND: Number(contractValueVND) || 0,
         startDate,
         finishDate,
+        contractDurationDays: parsedDuration,
         totalLengthM: 0,
         totalChambers: 0,
         startPointName: resolvedStartName,
@@ -495,6 +524,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const handleEdit = (project: UndergroundProject) => {
     setEditingProjectId(project.id);
     setName(project.name);
+    setContractCode(project.code || '');
     setPlanTypeId(
       project.planTypeId ||
         (planTypes.some((type) => type.id === 'plan-type-unclassified')
@@ -505,6 +535,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setContractValueVND(project.contractValueVND);
     setStartDate(project.startDate);
     setFinishDate(project.finishDate);
+    const computedDays =
+      project.contractDurationDays ??
+      diffDaysBetweenDateKeys(project.startDate, project.finishDate);
+    setContractDurationDays(
+      computedDays !== null && computedDays >= 0 ? String(computedDays) : ''
+    );
     setStartPointName(project.startPointName);
     setEndPointName(project.endPointName);
 
@@ -1016,21 +1052,17 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         </div>
                         <div>
                           <label className="mb-1 block font-bold text-slate-700">
-                            Mã Dự Án (tự động)
+                            Mã Hợp Đồng (Mã Dự Án) <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
-                            value={
-                              editingProjectId
-                                ? projects.find((project) => project.id === editingProjectId)
-                                    ?.code || ''
-                                : name.trim()
-                                ? generateProjectCode(name.trim())
-                                : ''
-                            }
-                            placeholder="Tự động tạo"
-                            readOnly
-                            className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-mono text-xs font-bold text-blue-800"
+                            value={contractCode}
+                            onChange={(e) => {
+                              setContractCode(e.target.value);
+                              setFormError(null);
+                            }}
+                            placeholder="VD: HĐ-01/2026-FPT"
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-xs sm:text-sm font-bold text-blue-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                           />
                         </div>
                       </div>
@@ -1098,16 +1130,26 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2.5">
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                         <div>
                           <label className="mb-1 block font-bold text-slate-700">
-                            Ngày Bắt Đầu <span className="text-red-500">*</span>
+                            Ngày Khởi Công <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="date"
                             value={startDate}
                             onChange={(e) => {
-                              setStartDate(e.target.value);
+                              const nextStart = e.target.value;
+                              setStartDate(nextStart);
+                              const days = Number(contractDurationDays);
+                              if (
+                                nextStart &&
+                                contractDurationDays.trim() !== '' &&
+                                Number.isFinite(days) &&
+                                days >= 0
+                              ) {
+                                setFinishDate(addDaysToDateKey(nextStart, days));
+                              }
                               setFormError(null);
                             }}
                             className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 font-mono text-xs font-medium text-slate-900 outline-none focus:border-blue-600"
@@ -1115,16 +1157,47 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         </div>
                         <div>
                           <label className="mb-1 block font-bold text-slate-700">
-                            Ngày Hoàn Tất <span className="text-red-500">*</span>
+                            Số Ngày Thi Công (HĐ) <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="VD: 150"
+                            value={contractDurationDays}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setContractDurationDays(raw);
+                              const days = Number(raw);
+                              if (
+                                startDate &&
+                                raw.trim() !== '' &&
+                                Number.isFinite(days) &&
+                                days >= 0
+                              ) {
+                                setFinishDate(addDaysToDateKey(startDate, days));
+                              }
+                              setFormError(null);
+                            }}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 font-mono text-xs font-bold text-slate-900 outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block font-bold text-slate-700">
+                            Ngày Kết Thúc <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="date"
                             value={finishDate}
                             onChange={(e) => {
-                              setFinishDate(e.target.value);
+                              const nextFinish = e.target.value;
+                              setFinishDate(nextFinish);
+                              if (startDate && nextFinish && nextFinish >= startDate) {
+                                const diff = diffDaysBetweenDateKeys(startDate, nextFinish);
+                                if (diff !== null) setContractDurationDays(String(diff));
+                              }
                               setFormError(null);
                             }}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 font-mono text-xs font-medium text-slate-900 outline-none focus:border-blue-600"
+                            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 font-mono text-xs font-bold text-blue-800 outline-none focus:border-blue-600"
                           />
                         </div>
                       </div>
@@ -1256,6 +1329,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   ? Math.round((item.completedLengthM / item.totalLengthM) * 100)
                   : 0;
               const isStatusMenuOpen = openStatusMenuProjectId === item.id;
+              const deadlineAlert = isAdmin
+                ? getProjectDeadlineAlert(item, getCurrentDateKey())
+                : null;
 
               return (
                 <motion.div
@@ -1266,7 +1342,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18, ease: 'easeOut' }}
                   className={`min-w-0 rounded-2xl border bg-white p-3 sm:p-4 shadow-2xs transition-all ${
-                    contractorPanelProjectId === item.id && !item.contractors?.length
+                    deadlineAlert
+                      ? 'border-red-400 ring-2 ring-red-100'
+                      : contractorPanelProjectId === item.id && !item.contractors?.length
                       ? 'border-indigo-300 ring-2 ring-indigo-100'
                       : 'border-slate-200/90 hover:border-slate-300'
                   }`}
@@ -1278,6 +1356,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         {item.name}
                       </h4>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-800">
+                          HĐ: {item.code}
+                        </span>
                         <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
                           {planTypes.find((type) => type.id === item.planTypeId)?.name ||
                             'Chưa phân loại'}
@@ -1286,6 +1367,16 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           CĐT: <strong className="font-semibold text-slate-700">{item.investor}</strong>
                         </span>
                       </div>
+                      {deadlineAlert && (
+                        <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-[11px] font-extrabold text-red-700">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                          <span>
+                            {deadlineAlert.isOverdue
+                              ? `Quá hạn ${Math.abs(deadlineAlert.daysRemaining)} ngày — Cập nhật hồ sơ gia hạn / dí đối tác`
+                              : `Còn ${deadlineAlert.daysRemaining} ngày hết hạn (${item.finishDate.split('-').reverse().join('/')}) — Cập nhật hồ sơ gia hạn / dí đối tác`}
+                          </span>
+                        </div>
+                      )}
                       {(item.pausePeriods || []).length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {(item.pausePeriods || []).map((period) => (

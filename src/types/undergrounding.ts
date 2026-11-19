@@ -73,6 +73,7 @@ export interface UndergroundProject {
   contractValueVND: number; // Giá trị HĐ (VNĐ)
   startDate: string; // Ngày bắt đầu thi công
   finishDate: string; // Ngày hoàn tất thi công
+  contractDurationDays?: number; // Số ngày thi công theo hợp đồng
   totalLengthM: number; // Chiều dài toàn tuyến (mét)
   totalChambers: number; // Bao nhiêu hố ga (mục tiêu)
   startPointName: string; // Điểm bắt đầu (VD: Nút giao Võ Nguyên Giáp)
@@ -148,4 +149,37 @@ export interface SCurveDataPoint {
   actualCumulativeM: number;
   plannedChambers: number;
   actualChambers: number;
+}
+
+export type ProjectDocumentCategory = string;
+
+export interface ProjectDocumentType {
+  id: string;
+  name: string;
+}
+
+export interface ProjectDocumentFile {
+  fileId: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType?: string;
+}
+
+export interface ProjectDocument {
+  id: string;
+  projectId: string;
+  category: ProjectDocumentCategory;
+  categoryLabel: string;
+  title: string;
+  documentCode?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  fileName?: string;
+  fileUrl?: string;
+  fileId?: string;
+  mimeType?: string;
+  files?: ProjectDocumentFile[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
