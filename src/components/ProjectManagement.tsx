@@ -51,6 +51,8 @@ interface ProjectManagementProps {
     dailyLogs: number;
     bulletins: number;
     planTypes: number;
+    projectDocuments?: number;
+    documentTypes?: number;
   }>;
   onAddPlanType: (planType: PlanType) => Promise<boolean>;
   onUpdatePlanType: (planType: PlanType) => Promise<boolean>;
@@ -101,6 +103,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [pauseFormError, setPauseFormError] = useState<string | null>(null);
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
 
   // Form State — Empty by default so user chooses everything from scratch
   const [name, setName] = useState('');
@@ -359,6 +363,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!validateStep1()) {
       setFormStep(1);
       return;
@@ -368,6 +373,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setFormStep(2);
       return;
     }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
 
     const resolvedStartName =
       startPointName.trim() ||
@@ -519,6 +528,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     resetForm();
     setIsProjectFormOpen(false);
     setTimeout(() => setSavedNotice(null), 3000);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (project: UndergroundProject) => {
@@ -633,7 +646,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     try {
       const restored = await onImportBackup(file);
       setBackupStatus(
-        `Đã khôi phục ${restored.projects} dự án, ${restored.dailyLogs} nhật ký, ${restored.bulletins} thông báo và ${restored.planTypes} loại kế hoạch.`
+        `Đã khôi phục ${restored.projects} dự án, ${restored.dailyLogs} nhật ký, ${restored.bulletins} thông báo, ${restored.planTypes} loại kế hoạch, ${restored.projectDocuments ?? 0} hồ sơ và ${restored.documentTypes ?? 0} loại hồ sơ.`
       );
       setBackupStatusIsError(false);
     } catch (error) {
@@ -1115,7 +1128,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           </label>
                           {contractValueVND > 0 && (
                             <span className="font-mono text-[11px] font-bold text-blue-600">
-                              ≈ {formatNumber(contractValueVND / 1000000000, 2)} Tỷ VNĐ
+                              {formatNumber(contractValueVND)} VNĐ
                             </span>
                           )}
                         </div>
@@ -1264,11 +1277,16 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     {isAdmin ? (
                       <button
                         type="submit"
-                        className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-blue-700 active:scale-[0.98]"
+                        disabled={isSubmitting}
+                        className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-60"
                       >
                         <Save className="h-3.5 w-3.5" />
                         <span>
-                          {editingProjectId ? 'Lưu cập nhật dự án' : 'Lưu & Khởi tạo dự án'}
+                          {isSubmitting
+                            ? 'Đang lưu...'
+                            : editingProjectId
+                            ? 'Lưu cập nhật dự án'
+                            : 'Lưu & Khởi tạo dự án'}
                         </span>
                       </button>
                     ) : (
@@ -1525,7 +1543,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     <div className="min-w-0">
                       <span className="block truncate text-[9px] text-slate-400">Giá trị HĐ</span>
                       <strong className="block truncate font-mono text-[11px] sm:text-xs font-bold text-blue-700">
-                        {formatNumber(item.contractValueVND / 1000000000, 2)} Tỷ
+                        {formatNumber(item.contractValueVND)} VNĐ
                       </strong>
                     </div>
                     <div className="min-w-0 border-l border-slate-200/70 pl-1">

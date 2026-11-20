@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Sidebar, MainNavTab } from './components/Sidebar';
 import { OverviewDashboard } from './components/OverviewDashboard';
 import { ProjectDailyReport } from './components/ProjectDailyReport';
@@ -169,6 +169,7 @@ export default function App() {
   const [dataReload, setDataReload] = useState(0);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isDeadlineAlertExpanded, setIsDeadlineAlertExpanded] = useState(false);
 
   // Core Data States
   const [projects, setProjects] = useState<UndergroundProject[]>(() =>
@@ -755,7 +756,14 @@ export default function App() {
   };
 
   const handleExportBackup = () =>
-    exportDataBackupToExcel({ projects, dailyLogs, bulletins, planTypes });
+    exportDataBackupToExcel({
+      projects,
+      dailyLogs,
+      bulletins,
+      planTypes,
+      projectDocuments,
+      documentTypes,
+    });
 
   const handleImportBackup = async (file: File) => {
     if (!isAdmin) throw new Error('Bạn cần đăng nhập Admin để khôi phục dữ liệu.');
@@ -764,14 +772,31 @@ export default function App() {
     const normalizedProjects = normalizeProjectPlanTypes(backup.projects, backup.planTypes);
     const restoredPlanTypes = includeUnclassifiedPlanType(backup.planTypes, normalizedProjects);
     const restoredProjects = synchronizeProjectProgress(normalizedProjects, reconciledLogs);
-    const previousData = { projects, dailyLogs, bulletins, planTypes };
+    const restoredDocuments = backup.projectDocuments || [];
+    const restoredDocumentTypes = backup.documentTypes || [];
+    const previousData = {
+      projects,
+      dailyLogs,
+      bulletins,
+      planTypes,
+      projectDocuments,
+      documentTypes,
+    };
     setProjects(restoredProjects);
     setDailyLogs(reconciledLogs);
     setBulletins(backup.bulletins);
     setPlanTypes(restoredPlanTypes);
+    setProjectDocuments(restoredDocuments);
+    setDocumentTypes(restoredDocumentTypes);
     setSelectedProjectId('all');
     const replaceTable = async <T extends { id: string },>(
-      table: 'projects' | 'dailyLogs' | 'bulletins' | 'planTypes',
+      table:
+        | 'projects'
+        | 'dailyLogs'
+        | 'bulletins'
+        | 'planTypes'
+        | 'projectDocuments'
+        | 'documentTypes',
       previousRows: T[],
       nextRows: T[]
     ) => {
@@ -788,6 +813,8 @@ export default function App() {
         replaceTable('dailyLogs', previousData.dailyLogs, reconciledLogs),
         replaceTable('bulletins', previousData.bulletins, backup.bulletins),
         replaceTable('planTypes', previousData.planTypes, restoredPlanTypes),
+        replaceTable('projectDocuments', previousData.projectDocuments, restoredDocuments),
+        replaceTable('documentTypes', previousData.documentTypes, restoredDocumentTypes),
       ]);
     } catch (error) {
       setDataReload((current) => current + 1);
@@ -798,6 +825,8 @@ export default function App() {
       dailyLogs: backup.dailyLogs.length,
       bulletins: backup.bulletins.length,
       planTypes: restoredPlanTypes.length,
+      projectDocuments: restoredDocuments.length,
+      documentTypes: restoredDocumentTypes.length,
     };
   };
 
@@ -1088,8 +1117,9 @@ export default function App() {
             setShowDailyProjectPicker(true);
             setShowMapProjectPicker(false);
           } else if (tab === 'gis-map') {
+            setSelectedProjectId('all');
             setShowDailyProjectPicker(false);
-            setShowMapProjectPicker(true);
+            setShowMapProjectPicker(false);
           } else {
             setShowDailyProjectPicker(false);
             setShowMapProjectPicker(false);
@@ -1176,53 +1206,72 @@ export default function App() {
             return (
               <div
                 role="alert"
-                className="mb-4 rounded-2xl border-2 border-red-400 bg-red-50 px-4 py-3 text-red-900 shadow-sm"
+                className="mb-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-2 text-red-900 shadow-2xs"
               >
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-red-800">
-                      Cảnh báo hạn thi công (≤ 15 ngày): {urgentProjects.length} dự án chưa hoàn tất — Cần cập nhật hồ sơ gia hạn hoặc đôn đốc đối tác
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {urgentProjects.map(({ project, alert }) => {
-                        const pct =
-                          project.totalLengthM > 0
-                            ? Math.min(
-                                100,
-                                Math.round(
-                                  (project.completedLengthM / project.totalLengthM) * 100
-                                )
-                              )
-                            : 0;
-                        return (
-                          <button
-                            key={project.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedProjectId(project.id);
-                              setCurrentTab('daily-report');
-                            }}
-                            className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-left text-xs font-bold text-red-800 hover:bg-red-100/70 transition-colors"
-                          >
-                            <span className="font-mono text-[11px] text-red-600">
-                              [{project.code}]
-                            </span>
-                            <span>{project.name}</span>
-                            <span className="rounded bg-red-600 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-white">
-                              {alert.isOverdue
-                                ? `Quá hạn ${Math.abs(alert.daysRemaining)} ngày`
-                                : `Còn ${alert.daysRemaining} ngày`}
-                            </span>
-                            <span className="font-mono text-[11px] text-red-700">
-                              ({pct}% · Hạn {project.finishDate.split('-').reverse().join('/')})
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDeadlineAlertExpanded((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+                    <span className="truncate text-xs sm:text-sm font-extrabold text-red-800">
+                      Cảnh báo hạn thi công (≤ 15 ngày):{' '}
+                      <span className="rounded-md bg-red-600 px-1.5 py-0.5 font-mono text-[11px] font-black text-white">
+                        {urgentProjects.length} dự án
+                      </span>{' '}
+                      chưa hoàn tất — Cần cập nhật gia hạn / đôn đốc
+                    </span>
                   </div>
-                </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-0.5 text-[11px] font-bold text-red-700">
+                    {isDeadlineAlertExpanded ? 'Thu gọn' : 'Xem danh sách'}
+                    {isDeadlineAlertExpanded ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                </button>
+
+                {isDeadlineAlertExpanded && (
+                  <div className="mt-2.5 flex flex-wrap gap-2 border-t border-red-200/80 pt-2.5">
+                    {urgentProjects.map(({ project, alert }) => {
+                      const pct =
+                        project.totalLengthM > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                (project.completedLengthM / project.totalLengthM) * 100
+                              )
+                            )
+                          : 0;
+                      return (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedProjectId(project.id);
+                            setCurrentTab('daily-report');
+                          }}
+                          className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-left text-xs font-bold text-red-800 hover:bg-red-100/70 transition-colors"
+                        >
+                          <span className="font-mono text-[11px] text-red-600">
+                            [{project.code}]
+                          </span>
+                          <span>{project.name}</span>
+                          <span className="rounded bg-red-600 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-white">
+                            {alert.isOverdue
+                              ? `Quá hạn ${Math.abs(alert.daysRemaining)} ngày`
+                              : `Còn ${alert.daysRemaining} ngày`}
+                          </span>
+                          <span className="font-mono text-[11px] text-red-700">
+                            ({pct}% · Hạn {project.finishDate.split('-').reverse().join('/')})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1319,16 +1368,8 @@ export default function App() {
               <GisMap
                 projects={projects}
                 planTypes={planTypes}
-                selectedProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
+                selectedProjectId={selectedProjectId}
                 onSelectProject={(id) => setSelectedProjectId(id)}
-                showProjectPicker={showMapProjectPicker}
-                onChooseProject={(projectId) => {
-                  setSelectedProjectId(projectId);
-                  setShowMapProjectPicker(false);
-                }}
-                onShowProjectPicker={() => {
-                  setShowMapProjectPicker(true);
-                }}
               />
             </div>
           )}

@@ -52,6 +52,8 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [editingBulletin, setEditingBulletin] = useState<SiteBulletin | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -119,45 +121,53 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!title.trim() || !content.trim()) return;
 
-    const projName =
-      formProjectId === 'all'
-        ? 'Tất cả các dự án'
-        : projects.find((p) => p.id === formProjectId)?.name || 'Dự án ngầm';
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const projName =
+        formProjectId === 'all'
+          ? 'Tất cả các dự án'
+          : projects.find((p) => p.id === formProjectId)?.name || 'Dự án ngầm';
 
-    if (editingBulletin) {
-      const updated: SiteBulletin = {
-        ...editingBulletin,
-        title: title.trim(),
-        category,
-        projectId: formProjectId,
-        projectName: projName,
-        author: author.trim() || 'Kỹ sư Giám sát',
-        date,
-        content: content.trim(),
-        documentRefNumber: documentRefNumber.trim() || undefined,
-        severity,
-      };
-      if (!(await onUpdateBulletin(updated))) return;
-    } else {
-      const newBulletin: SiteBulletin = {
-        id: `blt-${Date.now()}`,
-        title: title.trim(),
-        category,
-        projectId: formProjectId,
-        projectName: projName,
-        author: author.trim() || 'Kỹ sư Giám sát',
-        date,
-        content: content.trim(),
-        documentRefNumber: documentRefNumber.trim() || undefined,
-        severity,
-        isActive: true,
-      };
-      if (!(await onAddBulletin(newBulletin))) return;
+      if (editingBulletin) {
+        const updated: SiteBulletin = {
+          ...editingBulletin,
+          title: title.trim(),
+          category,
+          projectId: formProjectId,
+          projectName: projName,
+          author: author.trim() || 'Kỹ sư Giám sát',
+          date,
+          content: content.trim(),
+          documentRefNumber: documentRefNumber.trim() || undefined,
+          severity,
+        };
+        if (!(await onUpdateBulletin(updated))) return;
+      } else {
+        const newBulletin: SiteBulletin = {
+          id: `blt-${Date.now()}`,
+          title: title.trim(),
+          category,
+          projectId: formProjectId,
+          projectName: projName,
+          author: author.trim() || 'Kỹ sư Giám sát',
+          date,
+          content: content.trim(),
+          documentRefNumber: documentRefNumber.trim() || undefined,
+          severity,
+          isActive: true,
+        };
+        if (!(await onAddBulletin(newBulletin))) return;
+      }
+
+      setShowCreateModal(false);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-
-    setShowCreateModal(false);
   };
 
   const handleToggleActive = async (b: SiteBulletin) => {
@@ -684,9 +694,14 @@ export const BulletinsBoard: React.FC<BulletinsBoardProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-amber-700"
+                    disabled={isSubmitting}
+                    className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-amber-700 disabled:opacity-60"
                   >
-                    {editingBulletin ? 'Lưu cập nhật' : 'Phát hành ngay'}
+                    {isSubmitting
+                      ? 'Đang lưu...'
+                      : editingBulletin
+                      ? 'Lưu cập nhật'
+                      : 'Phát hành ngay'}
                   </button>
                 </div>
               </form>

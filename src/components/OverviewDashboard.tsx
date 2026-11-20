@@ -168,6 +168,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [expandedDetailProjectId, setExpandedDetailProjectId] = useState<string | null>(null);
   const [selectedPlanTypeId, setSelectedPlanTypeId] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'paused' | 'completed'>('all');
   const projectCardRefs = useRef(new Map<string, HTMLElement>());
   const shouldReduceMotion = useReducedMotion();
 
@@ -187,8 +188,13 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       selectedPlanTypeId === 'all' ||
       (project.planTypeId || 'plan-type-unclassified') === selectedPlanTypeId
   );
-  const scopedProjects = planTypeProjects.filter(
+  const activeProjects = planTypeProjects.filter(
     (project) => (project.status || 'in_progress') === 'in_progress'
+  );
+  const pausedProjectCount = planTypeProjects.filter((project) => project.status === 'paused').length;
+  const completedProjectCount = planTypeProjects.filter((project) => project.status === 'completed').length;
+  const scopedProjects = planTypeProjects.filter(
+    (project) => statusFilter === 'all' || (project.status || 'in_progress') === statusFilter
   );
   const selectedPlanTypeName =
     planTypes.find((type) => type.id === selectedPlanTypeId)?.name || 'Chưa phân loại';
@@ -197,9 +203,6 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     (bulletin) =>
       bulletin.projectId === 'all' || scopedProjectIds.has(bulletin.projectId)
   );
-  const activeProjects = scopedProjects;
-  const pausedProjectCount = planTypeProjects.filter((project) => project.status === 'paused').length;
-  const completedProjectCount = planTypeProjects.filter((project) => project.status === 'completed').length;
   const latestProgressLogs = getLatestProgressLogs(dailyLogs);
   // Compute aggregate system metrics
   const totalSystemLengthM = scopedProjects.reduce((sum, p) => sum + p.totalLengthM, 0);
@@ -275,6 +278,48 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     1,
     ...weekProgressByProject.flatMap(({ previous, current }) => [previous.trench, current.trench])
   );
+  const activeWeeklyGrowth = activeProjects.reduce(
+    (acc, project) => {
+      const sumActiveRange = (range: { start: string; end: string }) =>
+        dailyLogs
+          .filter(
+            (log) =>
+              log.projectId === project.id &&
+              log.date >= range.start &&
+              log.date <= range.end &&
+              isProjectActiveOnDate(project, log.date)
+          )
+          .reduce(
+            (totals, log) => ({
+              trench: totals.trench + getDailyTrenchOutput(log),
+              chambers: totals.chambers + (log.chambersPouredToday || 0),
+            }),
+            { trench: 0, chambers: 0 }
+          );
+
+      const prev = sumActiveRange(previousWeekRange);
+      const curr = sumActiveRange({
+        start: thisWeekRange.start,
+        end: thisWeekRange.end < currentDate ? thisWeekRange.end : currentDate,
+      });
+      return {
+        prevTrench: acc.prevTrench + prev.trench,
+        currTrench: acc.currTrench + curr.trench,
+        prevChambers: acc.prevChambers + prev.chambers,
+        currChambers: acc.currChambers + curr.chambers,
+      };
+    },
+    { prevTrench: 0, currTrench: 0, prevChambers: 0, currChambers: 0 }
+  );
+  const activeTrenchDiff = activeWeeklyGrowth.currTrench - activeWeeklyGrowth.prevTrench;
+  const activeTrenchGrowthPct =
+    activeWeeklyGrowth.prevTrench > 0
+      ? Math.round((activeTrenchDiff / activeWeeklyGrowth.prevTrench) * 100)
+      : activeWeeklyGrowth.currTrench > 0
+      ? 100
+      : 0;
+  const activeChambersDiff =
+    activeWeeklyGrowth.currChambers - activeWeeklyGrowth.prevChambers;
   const maxWeeklyChambers = Math.max(
     1,
     ...weekProgressByProject.flatMap(({ previous, current }) => [previous.chambers, current.chambers])
@@ -285,7 +330,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     let text = `📊 BÁO CÁO NHANH TIẾN ĐỘ NGẦM HÓA CHO LÃNH ĐẠO\n`;
     text += `📅 Ngày báo cáo: ${currentDate}\n`;
     text += `🗂 Phạm vi: ${selectedPlanTypeId === 'all' ? 'Tất cả loại kế hoạch' : selectedPlanTypeName}\n`;
-    text += `💰 Tổng quy mô: ${(totalContractValue / 1000000000).toFixed(1)} Tỷ VNĐ (${scopedProjects.length} Dự án)\n`;
+    text += `💰 Tổng quy mô: ${formatNumber(totalContractValue)} VNĐ (${scopedProjects.length} Dự án)\n`;
     text += `⚡ Tiến độ mương cáp: ${formatNumber(totalCompletedLengthM)}/${formatNumber(totalSystemLengthM)} m (${overallLengthPercent}%)\n`;
     text += `☵ Hố ga hoàn tất: ${totalCompletedChambers}/${totalTargetChambers} hầm (${overallChamberPercent}%)\n`;
     text += `📈 Tiến độ tổng hợp theo phạm vi đã chọn: ${overallProgressPercent}% (trung bình mương cáp và hố ga)\n`;
@@ -395,8 +440,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. Executive KPI Metric Row - 2x2 Mobile App Grid / 4 Desktop Columns */}
-      <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
+      {/* 3. Executive KPI Metric Row - 2x2 Mobile App Grid / 5 Desktop Columns */}
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {/* Card 1: Tổng Giá Trị Hợp Đồng */}
         <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:p-5">
           <div>
@@ -408,11 +453,11 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </span>
             </div>
-            <div className="mt-1 sm:mt-2 flex items-baseline gap-1">
-              <span className="font-mono text-lg font-black tracking-tight text-slate-900 sm:text-3xl">
-                {(totalContractValue / 1_000_000_000).toFixed(2)}
+            <div className="mt-1 sm:mt-2 flex flex-wrap items-baseline gap-1">
+              <span className="font-mono text-sm font-black tracking-tight text-slate-900 sm:text-lg xl:text-base 2xl:text-lg break-all">
+                {formatNumber(totalContractValue)}
               </span>
-              <span className="text-[10px] sm:text-xs font-bold text-slate-500">Tỷ VNĐ</span>
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500">VNĐ</span>
             </div>
           </div>
 
@@ -503,28 +548,57 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </span>
             </div>
-            <div className="mt-1 sm:mt-2 flex items-baseline gap-1">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className="mt-1 sm:mt-2 flex items-baseline gap-1 text-left hover:opacity-80"
+              title="Xem tất cả dự án"
+            >
               <span className="font-mono text-lg font-black tracking-tight text-slate-900 sm:text-3xl">
-                {scopedProjects.length}
+                {planTypeProjects.length}
               </span>
               <span className="text-[10px] sm:text-xs font-bold text-slate-500">tuyến</span>
-            </div>
+            </button>
           </div>
 
           <div className="mt-2 sm:mt-4 space-y-1.5 sm:space-y-2 border-t border-slate-100 pt-2 sm:pt-3">
             <div className="grid grid-cols-3 gap-1 text-center">
-              <div className="rounded-lg bg-blue-50/80 p-1 sm:p-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusFilter((curr) => (curr === 'in_progress' ? 'all' : 'in_progress'))
+                }
+                className={`rounded-lg bg-blue-50/80 p-1 sm:p-1.5 transition-all hover:bg-blue-100 ${
+                  statusFilter === 'in_progress' ? 'ring-2 ring-blue-500' : ''
+                }`}
+              >
                 <span className="block text-[8px] sm:text-[9px] font-semibold text-blue-700">Làm</span>
                 <strong className="font-mono text-[11px] sm:text-xs font-bold text-blue-900">{activeProjects.length}</strong>
-              </div>
-              <div className="rounded-lg bg-amber-50/80 p-1 sm:p-1.5">
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusFilter((curr) => (curr === 'paused' ? 'all' : 'paused'))
+                }
+                className={`rounded-lg bg-amber-50/80 p-1 sm:p-1.5 transition-all hover:bg-amber-100 ${
+                  statusFilter === 'paused' ? 'ring-2 ring-amber-500' : ''
+                }`}
+              >
                 <span className="block text-[8px] sm:text-[9px] font-semibold text-amber-700">Ngưng</span>
                 <strong className="font-mono text-[11px] sm:text-xs font-bold text-amber-900">{pausedProjectCount}</strong>
-              </div>
-              <div className="rounded-lg bg-emerald-50/80 p-1 sm:p-1.5">
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusFilter((curr) => (curr === 'completed' ? 'all' : 'completed'))
+                }
+                className={`rounded-lg bg-emerald-50/80 p-1 sm:p-1.5 transition-all hover:bg-emerald-100 ${
+                  statusFilter === 'completed' ? 'ring-2 ring-emerald-500' : ''
+                }`}
+              >
                 <span className="block text-[8px] sm:text-[9px] font-semibold text-emerald-700">Xong</span>
                 <strong className="font-mono text-[11px] sm:text-xs font-bold text-emerald-900">{completedProjectCount}</strong>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -566,6 +640,68 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <span>Xem bảng tin</span>
               <ArrowRight className="h-3 w-3" />
             </button>
+          </div>
+        </div>
+
+        {/* Card 5: Tăng Trưởng So Với Tuần Trước (Chỉ tính dự án đang hoạt động) */}
+        <div className="col-span-2 lg:col-span-1 flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:p-5">
+          <div>
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
+                Tăng Trưởng Tuần
+              </span>
+              <span
+                className={`flex h-6 w-6 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg sm:rounded-xl ${
+                  activeTrenchDiff >= 0
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-rose-50 text-rose-600'
+                }`}
+              >
+                <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </span>
+            </div>
+            <div className="mt-1 sm:mt-2 flex flex-wrap items-baseline gap-1.5">
+              <span
+                className={`font-mono text-lg font-black tracking-tight sm:text-2xl ${
+                  activeTrenchDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                }`}
+              >
+                {activeTrenchDiff >= 0 ? '+' : ''}
+                {formatNumber(activeTrenchDiff)}m
+              </span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                  activeTrenchDiff >= 0
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {activeTrenchGrowthPct >= 0 ? '+' : ''}
+                {activeTrenchGrowthPct}%
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-2 sm:mt-4 space-y-1 border-t border-slate-100 pt-2 sm:pt-3 text-[10px] sm:text-[11px]">
+            <div className="flex items-center justify-between gap-1 text-slate-600">
+              <span className="truncate">Mương:</span>
+              <span className="font-mono font-bold text-slate-800 shrink-0">
+                {formatNumber(activeWeeklyGrowth.currTrench)}m / {formatNumber(activeWeeklyGrowth.prevTrench)}m
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-1 text-slate-600">
+              <span className="truncate">Hố ga:</span>
+              <span className="font-mono font-bold text-slate-800 shrink-0">
+                {formatNumber(activeWeeklyGrowth.currChambers)} / {formatNumber(activeWeeklyGrowth.prevChambers)}{' '}
+                <span className={activeChambersDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                  ({activeChambersDiff >= 0 ? '+' : ''}
+                  {formatNumber(activeChambersDiff)})
+                </span>
+              </span>
+            </div>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">
+              Chỉ tính {activeProjects.length} DA đang hoạt động
+            </p>
           </div>
         </div>
       </div>
@@ -676,7 +812,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         <p className="break-words font-bold text-slate-900">{project.name}</p>
                         <p className="mt-0.5 text-[10px] text-slate-600">
                           {project.code} · {project.investor} · Hạn {project.finishDate.split('-').reverse().join('/')}
-                          {' · '}{formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ VNĐ
+                          {' · '}{formatNumber(project.contractValueVND)} VNĐ
                         </p>
                         <p className="break-words text-[10px] text-slate-600">
                           Hiện trường: {project.currentWorkLocation || 'Chưa cập nhật'}
@@ -972,9 +1108,32 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               Mỗi dự án hiển thị tiến độ tổng hợp cùng tỷ lệ riêng của mương cáp và hầm / hố ga.
             </p>
           </div>
-          <span className="w-fit rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-            {selectedPlanTypeId === 'all' ? 'Toàn hệ thống' : selectedPlanTypeName}: {overallProgressPercent}%
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: 'all', label: `Tất cả (${planTypeProjects.length})` },
+                { id: 'in_progress', label: `Đang thi công (${activeProjects.length})` },
+                { id: 'paused', label: `Tạm ngưng (${pausedProjectCount})` },
+                { id: 'completed', label: `Hoàn tất (${completedProjectCount})` },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                  statusFilter === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+            <span className="w-fit rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+              {selectedPlanTypeId === 'all' ? 'Toàn hệ thống' : selectedPlanTypeName}: {overallProgressPercent}%
+            </span>
+          </div>
         </div>
 
         {scopedProjects.length > 0 ? (
@@ -1073,9 +1232,24 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                   {/* 1. Header Row: Code, Bulletin Dot, Map Action + Full-width Project Title */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-700">
                           {project.code}
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${
+                            (project.status || 'in_progress') === 'completed'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : project.status === 'paused'
+                              ? 'border-amber-200 bg-amber-50 text-amber-800'
+                              : 'border-blue-200 bg-blue-50/60 text-blue-700'
+                          }`}
+                        >
+                          {(project.status || 'in_progress') === 'completed'
+                            ? 'Hoàn tất'
+                            : project.status === 'paused'
+                            ? 'Tạm ngưng'
+                            : 'Đang thi công'}
                         </span>
                         {projectBulletins.length > 0 && (
                           <span
@@ -1117,7 +1291,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                       <div className="flex min-w-0 items-center gap-1">
                         <span className="shrink-0 text-slate-400">HĐ:</span>
                         <span className="font-mono font-bold text-slate-800">
-                          {formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ
+                          {formatNumber(project.contractValueVND)} VNĐ
                         </span>
                       </div>
                       <div className="col-span-2 flex min-w-0 items-center gap-1 lg:col-span-1">
@@ -1231,7 +1405,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         <p className="break-words"><strong>Chủ đầu tư:</strong> {project.investor}</p>
                         <p className="break-words"><strong>Nhà thầu:</strong> {project.contractors?.length ? project.contractors.map((contractor) => contractor.name).join(', ') : project.contractor}</p>
                         <p><strong>Thời gian:</strong> {project.startDate.split('-').reverse().join('/')} – {project.finishDate.split('-').reverse().join('/')}</p>
-                        <p><strong>Giá trị hợp đồng:</strong> {formatNumber(project.contractValueVND / 1_000_000_000, 2)} tỷ VNĐ</p>
+                        <p><strong>Giá trị hợp đồng:</strong> {formatNumber(project.contractValueVND)} VNĐ</p>
                         <p className="break-words sm:col-span-2"><strong>Vị trí hiện trường:</strong> {project.currentWorkLocation || 'Chưa cập nhật'}</p>
                         <p className="font-mono"><strong>Mương cáp:</strong> {formatNumber(project.completedLengthM)} / {formatNumber(project.totalLengthM)} m</p>
                         <p className="font-mono"><strong>Hầm / hố ga:</strong> {formatNumber(project.completedChambers)} / {formatNumber(project.totalChambers)} hầm</p>
@@ -1323,7 +1497,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                             <span className="font-mono text-slate-600">
                               {formatNumber(contractor.completedLengthM)}/{formatNumber(contractor.totalLengthM)} m
                               {' · '}hố ga {formatNumber(contractor.completedChambers)}/{formatNumber(contractor.totalChambers)}
-                              {' · '}{formatNumber(contractor.contractValueVND / 1_000_000_000, 2)} tỷ
+                              {' · '}{formatNumber(contractor.contractValueVND)} VNĐ
                             </span>
                             <span className="shrink-0 text-[9px] font-semibold text-indigo-700 group-open:hidden">
                               Xem thống kê +
@@ -1530,8 +1704,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <div>
                   <span className="text-slate-500 block text-[10px]">Tổng Hợp Đồng:</span>
-                  <strong className="text-sm font-mono text-slate-900">
-                    {(totalContractValue / 1000000000).toFixed(2)} Tỷ
+                  <strong className="text-xs sm:text-sm font-mono text-slate-900">
+                    {formatNumber(totalContractValue)} VNĐ
                   </strong>
                 </div>
                 <div>

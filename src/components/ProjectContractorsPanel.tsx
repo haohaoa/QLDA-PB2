@@ -57,6 +57,8 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   );
   const [expandedContractorId, setExpandedContractorId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [name, setName] = useState('');
   const [startPointId, setStartPointId] = useState(lastAssignedContractor?.endPointId || '');
   const [endPointId, setEndPointId] = useState('');
@@ -152,6 +154,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSubmittingRef.current) return;
     const trimmedName = name.trim();
     const startIndex = routePoints.findIndex((point) => point.id === startPointId);
     const endIndex = routePoints.findIndex((point) => point.id === endPointId);
@@ -239,16 +242,23 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
         )
       : [...updatedExistingContractors, newContractor];
 
-    if (await onUpdateProject({
-      ...project,
-      points: workingPoints,
-      contractors: nextContractors,
-      contractor: nextContractors.map((item) => item.name).join(', ') || 'Chưa phân công',
-      totalLengthM: nextContractors.reduce((sum, item) => sum + item.totalLengthM, 0),
-      totalChambers: nextContractors.reduce((sum, item) => sum + item.totalChambers, 0),
-    })) {
-      resetForm();
-      setIsFormModalOpen(false);
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      if (await onUpdateProject({
+        ...project,
+        points: workingPoints,
+        contractors: nextContractors,
+        contractor: nextContractors.map((item) => item.name).join(', ') || 'Chưa phân công',
+        totalLengthM: nextContractors.reduce((sum, item) => sum + item.totalLengthM, 0),
+        totalChambers: nextContractors.reduce((sum, item) => sum + item.totalChambers, 0),
+      })) {
+        resetForm();
+        setIsFormModalOpen(false);
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -405,7 +415,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
                   <div className="rounded-lg bg-indigo-50/70 px-2 py-1 text-indigo-900">
                     <span className="block text-[9px] text-indigo-500">Hợp đồng</span>
                     <strong className="font-mono">
-                      {formatNumber(contractor.contractValueVND / 1_000_000_000, 2)} tỷ
+                      {formatNumber(contractor.contractValueVND)} VNĐ
                     </strong>
                   </div>
                 </div>
@@ -585,10 +595,17 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                  disabled={isSubmitting}
+                  className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-60"
                 >
                   <Save className="h-3.5 w-3.5" />
-                  <span>{editingId ? 'Lưu cập nhật nhà thầu' : 'Lưu nhà thầu & đoạn tuyến'}</span>
+                  <span>
+                    {isSubmitting
+                      ? 'Đang lưu...'
+                      : editingId
+                      ? 'Lưu cập nhật nhà thầu'
+                      : 'Lưu nhà thầu & đoạn tuyến'}
+                  </span>
                 </button>
               </div>
             </form>

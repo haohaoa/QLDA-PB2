@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  ArrowLeft,
   Check,
   ChevronDown,
   ChevronRight,
@@ -64,6 +65,7 @@ export const ProjectDocumentsPage: React.FC<ProjectDocumentsPageProps> = ({
   const [docSearch, setDocSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectDocumentCategory>('all');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
 
   // Document Type Management State
   const [newTypeName, setNewTypeName] = useState('');
@@ -489,7 +491,11 @@ export const ProjectDocumentsPage: React.FC<ProjectDocumentsPageProps> = ({
       {/* Main 2-column layout (Route List + Document Categories) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Left: All Routes + Route Search */}
-        <aside className="lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3 h-fit">
+        <aside
+          className={`${
+            mobileView === 'detail' ? 'hidden lg:block' : 'block'
+          } lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3 h-fit`}
+        >
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
               Danh Sách Tuyến ({filteredProjects.length}/{projects.length})
@@ -519,7 +525,11 @@ export const ProjectDocumentsPage: React.FC<ProjectDocumentsPageProps> = ({
                   <button
                     key={project.id}
                     type="button"
-                    onClick={() => onSelectProject(project.id)}
+                    onClick={() => {
+                      onSelectProject(project.id);
+                      setMobileView('detail');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className={`w-full rounded-xl border p-2.5 text-left transition-all ${
                       isSelected
                         ? 'border-blue-500 bg-blue-50/80 ring-2 ring-blue-100'
@@ -554,7 +564,22 @@ export const ProjectDocumentsPage: React.FC<ProjectDocumentsPageProps> = ({
         </aside>
 
         {/* Right: Document Search + Expandable Categories for Selected Route */}
-        <section className="lg:col-span-8 space-y-3">
+        <section
+          className={`${
+            mobileView === 'list' ? 'hidden lg:block' : 'block'
+          } lg:col-span-8 space-y-3`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setMobileView('list');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="inline-flex lg:hidden items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50"
+          >
+            <ArrowLeft className="h-4 w-4 text-blue-600" />
+            Quay lại danh sách tuyến
+          </button>
           {!activeProject ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
               Chưa có tuyến dự án nào để hiển thị hồ sơ.

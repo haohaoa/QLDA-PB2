@@ -2,18 +2,27 @@ import type { AppDataToSave } from './appDataStorage';
 import type {
   DailyLogEntry,
   PlanType,
+  ProjectDocument,
+  ProjectDocumentType,
   SiteBulletin,
   UndergroundProject,
 } from '../types/undergrounding';
 
 const BACKUP_VERSION = '1';
 const CHUNK_SIZE = 30000;
-const COLLECTION_SHEETS = [
+const COLLECTION_SHEETS: ReadonlyArray<{
+  key: keyof AppDataToSave;
+  sheetName: string;
+  label: string;
+  optional?: boolean;
+}> = [
   { key: 'projects', sheetName: 'DuAn', label: 'Dự án' },
   { key: 'dailyLogs', sheetName: 'NhatKyNgay', label: 'Nhật ký ngày' },
   { key: 'bulletins', sheetName: 'ThongBao', label: 'Thông báo' },
   { key: 'planTypes', sheetName: 'LoaiKeHoach', label: 'Loại kế hoạch' },
-] as const;
+  { key: 'projectDocuments', sheetName: 'HoSoDuAn', label: 'Hồ sơ dự án', optional: true },
+  { key: 'documentTypes', sheetName: 'LoaiHoSo', label: 'Loại hồ sơ', optional: true },
+];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -100,6 +109,12 @@ const isBulletin = (value: unknown): value is SiteBulletin =>
 const isPlanType = (value: unknown): value is PlanType =>
   isRecord(value) && hasStringFields(value, ['id', 'name']);
 
+const isProjectDocument = (value: unknown): value is ProjectDocument =>
+  isRecord(value) && hasStringFields(value, ['id', 'projectId', 'category', 'title']);
+
+const isProjectDocumentType = (value: unknown): value is ProjectDocumentType =>
+  isRecord(value) && hasStringFields(value, ['id', 'name']);
+
 const hasUniqueIds = (records: Array<{ id: string }>) =>
   new Set(records.map((record) => record.id)).size === records.length;
 
@@ -131,6 +146,11 @@ const validateBackupData = (value: unknown): AppDataToSave => {
   const dailyLogs = Array.isArray(value.dailyLogs) ? value.dailyLogs.filter(isDailyLog) : [];
   const bulletins = Array.isArray(value.bulletins) ? value.bulletins.filter(isBulletin) : [];
   const planTypes = Array.isArray(value.planTypes) ? value.planTypes.filter(isPlanType) : [];
+  const rawDocs = Array.isArray(value.projectDocuments) ? value.projectDocuments : [];
+  const projectDocuments = rawDocs.filter(isProjectDocument);
+  const rawDocTypes = Array.isArray(value.documentTypes) ? value.documentTypes : [];
+  const documentTypes = rawDocTypes.filter(isProjectDocumentType);
+
   if (!Array.isArray(value.projects) || projects.length !== value.projects.length || !hasUniqueIds(projects)) {
     throw new Error('Danh sách dự án không hợp lệ hoặc có mã bản ghi trùng.');
   }
@@ -143,12 +163,20 @@ const validateBackupData = (value: unknown): AppDataToSave => {
   if (!Array.isArray(value.planTypes) || planTypes.length !== value.planTypes.length || !hasUniqueIds(planTypes)) {
     throw new Error('Danh sách loại kế hoạch không hợp lệ hoặc có mã bản ghi trùng.');
   }
+  if (projectDocuments.length !== rawDocs.length || !hasUniqueIds(projectDocuments)) {
+    throw new Error('Danh sách hồ sơ dự án không hợp lệ hoặc có mã bản ghi trùng.');
+  }
+  if (documentTypes.length !== rawDocTypes.length || !hasUniqueIds(documentTypes)) {
+    throw new Error('Danh sách loại hồ sơ không hợp lệ hoặc có mã bản ghi trùng.');
+  }
 
   return {
     projects,
     dailyLogs,
     bulletins,
     planTypes,
+    projectDocuments,
+    documentTypes,
   };
 };
 
@@ -163,7 +191,7 @@ export async function exportDataBackupToExcel(data: AppDataToSave): Promise<void
     ['Sao lưu dữ liệu QLDA', ''],
     ['Phiên bản', BACKUP_VERSION],
     ['Ngày sao lưu', new Date().toLocaleString('vi-VN')],
-    ['Nội dung', 'Tệp này gồm toàn bộ dự án, nhật ký ngày, thông báo và loại kế hoạch.'],
+    ['Nội dung', 'Tệp này gồm toàn bộ dự án, nhật ký ngày, thông báo, loại kế hoạch, hồ sơ dự án và loại hồ sơ.'],
     ['Khôi phục', 'Dùng chức năng Nhập dữ liệu sao lưu trong trang Quản lý dự án. Thao tác nhập sẽ thay thế dữ liệu hiện tại.'],
   ]);
   guide.getColumn(1).width = 22;
@@ -178,7 +206,7 @@ export async function exportDataBackupToExcel(data: AppDataToSave): Promise<void
     worksheet.addRow(['record_id', 'display_label', 'part_index', 'part_count', 'json_chunk']);
     worksheet.views = [{ state: 'frozen', ySplit: 1 }];
     worksheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
-    const records = data[key];
+    const records = data[key] || [];
     records.forEach((record) => {
       const serialized = JSON.stringify(record);
       const chunks = serialized.match(new RegExp(`[\\s\\S]{1,${CHUNK_SIZE}}`, 'g')) || [''];
@@ -235,9 +263,15 @@ export async function importDataBackupFromExcel(file: File): Promise<AppDataToSa
   }
 
   const result: Record<string, unknown[]> = {};
-  COLLECTION_SHEETS.forEach(({ key, sheetName }) => {
+  COLLECTION_SHEETS.forEach(({ key, sheetName, optional }) => {
     const worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) throw new Error(`Tệp sao lưu thiếu trang tính "${sheetName}".`);
+    if (!worksheet) {
+      if (optional) {
+        result[key] = [];
+        return;
+      }
+      throw new Error(`Tệp sao lưu thiếu trang tính "${sheetName}".`);
+    }
     const headers = Array.from({ length: 5 }, (_, index) =>
       cellText(worksheet.getCell(1, index + 1).value)
     );

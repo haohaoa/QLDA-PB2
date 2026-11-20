@@ -1326,7 +1326,7 @@ export const ProjectDailyReport: React.FC<ProjectDailyReportProps> = ({
 
             <div className="grid grid-cols-2 gap-1.5 bg-slate-50/70 p-2.5 sm:grid-cols-4 sm:gap-2.5 sm:p-4">
               {[
-                { label: 'Hợp đồng', value: `${formatNumber(displayedContractValue / 1_000_000_000, 2)} tỷ` },
+                { label: 'Hợp đồng', value: `${formatNumber(displayedContractValue)} VNĐ` },
                 { label: selectedContractorName ? 'Đoạn nhà thầu' : 'Chiều dài tuyến', value: `${formatNumber(displayedLength)}/${formatNumber(displayedLengthTarget)} m` },
                 { label: 'Hầm / hố ga', value: `${formatNumber(displayedChambers)}/${formatNumber(displayedChambersTarget)} hầm` },
                 { label: 'Thời gian', value: `${currentProject.startDate.split('-').reverse().join('/')}–${currentProject.finishDate.split('-').reverse().join('/')}` },

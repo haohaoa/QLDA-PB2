@@ -939,7 +939,7 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
                     {' · '}
                     Giá trị HĐ:{' '}
                     <strong className="font-mono text-blue-700">
-                      {formatNumber(effectiveProject.contractValueVND / 1_000_000_000, 2)} Tỷ VNĐ
+                      {formatNumber(effectiveProject.contractValueVND)} VNĐ
                     </strong>
                   </p>
                 </div>
@@ -1028,7 +1028,7 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
                     <p className="text-xs text-slate-600">
                       Lũy kế đến hết ngày {formatDateFull(reportDate)} · Tổng giá trị HĐ:{' '}
                       <strong className="font-mono text-blue-700">
-                        {formatNumber(totals.totalContractValue / 1_000_000_000, 2)} Tỷ VNĐ
+                        {formatNumber(totals.totalContractValue)} VNĐ
                       </strong>
                     </p>
                   </div>
