@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, Pencil, Plus, Save, Trash2, UsersRound, X } from 'lucide-react';
-import { DailyLogEntry, ProjectContractor, UndergroundProject } from '../types/undergrounding';
+import {
+  ContractorRouteSpan,
+  DailyLogEntry,
+  ProjectContractor,
+  UndergroundProject,
+} from '../types/undergrounding';
 import { getContractorKey } from '../utils/progressUtils';
 import { FormattedNumberInput } from './FormattedNumberInput';
 import { formatNumber } from '../utils/numberFormat';
-import { ProjectContractorRoutePicker } from './ProjectContractorRoutePicker';
+import {
+  ContractorDraftSpan,
+  ProjectContractorRoutePicker,
+} from './ProjectContractorRoutePicker';
 import { getContractorAssessment } from '../utils/contractorAssessment';
 import { getCurrentDateKey } from '../utils/scheduleUtils';
 import { useAppDialog } from './AppDialogProvider';
@@ -38,20 +46,11 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   const contractors = project.contractors || [];
   const today = getCurrentDateKey();
   const [workingPoints, setWorkingPoints] = useState(project.points);
+  const [workingSegments, setWorkingSegments] = useState(project.routeSegments);
   const routePoints = workingPoints.filter(
     (point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)
   );
-  const lastAssignedContractor = contractors
-    .map((contractor) => ({
-      contractor,
-      endIndex: routePoints.findIndex((point) => point.id === contractor.endPointId),
-    }))
-    .filter(({ endIndex }) => endIndex >= 0)
-    .sort((left, right) => right.endIndex - left.endIndex)[0]?.contractor;
-
-  const [endpointMode, setEndpointMode] = useState<'start' | 'end'>(
-    lastAssignedContractor ? 'end' : 'start'
-  );
+  const [endpointMode, setEndpointMode] = useState<'start' | 'end'>('start');
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(
     isAdmin && contractors.length === 0 && routePoints.length > 1
   );
@@ -60,8 +59,32 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = React.useRef(false);
   const [name, setName] = useState('');
-  const [startPointId, setStartPointId] = useState(lastAssignedContractor?.endPointId || '');
-  const [endPointId, setEndPointId] = useState('');
+  const createEmptySpan = (): ContractorDraftSpan => ({
+    id: `span-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    startPointId: '',
+    endPointId: '',
+  });
+  const [draftSegments, setDraftSegments] = useState<ContractorDraftSpan[]>(() => [
+    createEmptySpan(),
+  ]);
+  const [activeDraftSegmentId, setActiveDraftSegmentId] = useState<string>('');
+  const resolvedActiveDraftId = draftSegments.some((s) => s.id === activeDraftSegmentId)
+    ? activeDraftSegmentId
+    : draftSegments[0]?.id || '';
+  const activeDraftSpan =
+    draftSegments.find((s) => s.id === resolvedActiveDraftId) || draftSegments[0];
+  const startPointId = activeDraftSpan?.startPointId || '';
+  const endPointId = activeDraftSpan?.endPointId || '';
+
+  const setActiveSpanEndpoints = (nextStartId: string, nextEndId: string) => {
+    setDraftSegments((prev) =>
+      prev.map((seg) =>
+        seg.id === resolvedActiveDraftId
+          ? { ...seg, startPointId: nextStartId, endPointId: nextEndId }
+          : seg
+      )
+    );
+  };
   const [totalLengthM, setTotalLengthM] = useState(0);
   const [totalChambers, setTotalChambers] = useState(0);
   const [contractValueVND, setContractValueVND] = useState(0);
@@ -69,21 +92,16 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
 
   useEffect(() => {
     setWorkingPoints(project.points);
-  }, [project.points]);
-
-  useEffect(() => {
-    if (!editingId) {
-      setStartPointId(lastAssignedContractor?.endPointId || '');
-      setEndpointMode(lastAssignedContractor ? 'end' : 'start');
-    }
-  }, [editingId, lastAssignedContractor?.id, lastAssignedContractor?.endPointId]);
+    setWorkingSegments(project.routeSegments);
+  }, [project.points, project.routeSegments]);
 
   const resetForm = () => {
     setEditingId(null);
     setName('');
-    setStartPointId(lastAssignedContractor?.endPointId || '');
-    setEndPointId('');
-    setEndpointMode(lastAssignedContractor ? 'end' : 'start');
+    const fresh = createEmptySpan();
+    setDraftSegments([fresh]);
+    setActiveDraftSegmentId(fresh.id);
+    setEndpointMode('start');
     setTotalLengthM(0);
     setTotalChambers(0);
     setContractValueVND(0);
@@ -93,14 +111,29 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   const handleOpenAddModal = () => {
     resetForm();
     setWorkingPoints(project.points);
+    setWorkingSegments(project.routeSegments);
     setIsFormModalOpen(true);
   };
 
   const handleEdit = (contractor: ProjectContractor) => {
     setEditingId(contractor.id);
     setName(contractor.name);
-    setStartPointId(contractor.startPointId);
-    setEndPointId(contractor.endPointId);
+    const existingSpans: ContractorDraftSpan[] =
+      contractor.segments && contractor.segments.length > 0
+        ? contractor.segments.map((s) => ({
+            id: s.id,
+            startPointId: s.startPointId,
+            endPointId: s.endPointId,
+          }))
+        : [
+            {
+              id: `span-${contractor.id}-1`,
+              startPointId: contractor.startPointId,
+              endPointId: contractor.endPointId,
+            },
+          ];
+    setDraftSegments(existingSpans);
+    setActiveDraftSegmentId(existingSpans[0]?.id || '');
     setEndpointMode('start');
     setTotalLengthM(contractor.totalLengthM);
     setTotalChambers(contractor.totalChambers);
@@ -109,17 +142,110 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
     setIsFormModalOpen(true);
   };
 
+  const getOccupiedEdges = () => {
+    const occupied = new Set<number>();
+    contractors
+      .filter((c) => c.id !== editingId)
+      .forEach((c) => {
+        const cSpans =
+          c.segments && c.segments.length > 0
+            ? c.segments
+            : [{ startPointId: c.startPointId, endPointId: c.endPointId }];
+        cSpans.forEach((cSpan) => {
+          const from = routePoints.findIndex((p) => p.id === cSpan.startPointId);
+          const to = routePoints.findIndex((p) => p.id === cSpan.endPointId);
+          if (from >= 0 && to > from) {
+            for (let idx = from; idx < to; idx += 1) occupied.add(idx);
+          }
+        });
+      });
+    draftSegments
+      .filter((d) => d.id !== resolvedActiveDraftId)
+      .forEach((d) => {
+        const from = routePoints.findIndex((p) => p.id === d.startPointId);
+        const to = routePoints.findIndex((p) => p.id === d.endPointId);
+        if (from >= 0 && to > from) {
+          for (let idx = from; idx < to; idx += 1) occupied.add(idx);
+        }
+      });
+    return occupied;
+  };
+
+  const getSegmentBoundsForPoint = (
+    pointId: string
+  ): { segStartIdx: number; segEndIdx: number; segId?: string } => {
+    if (workingSegments && workingSegments.length > 0) {
+      const seg = workingSegments.find((s) => s.points.some((p) => p.id === pointId));
+      if (seg && seg.points.length > 0) {
+        const firstIdx = routePoints.findIndex((p) => p.id === seg.points[0].id);
+        const lastIdx = routePoints.findIndex(
+          (p) => p.id === seg.points[seg.points.length - 1].id
+        );
+        if (firstIdx >= 0 && lastIdx >= firstIdx) {
+          return { segStartIdx: firstIdx, segEndIdx: lastIdx, segId: seg.id };
+        }
+      }
+    }
+    return { segStartIdx: 0, segEndIdx: routePoints.length - 1 };
+  };
+
   const handleSelectRoutePoint = (pointId: string) => {
     const pointIndex = routePoints.findIndex((point) => point.id === pointId);
     const startIndex = routePoints.findIndex((point) => point.id === startPointId);
+    if (pointIndex < 0) return;
+
+    const occupiedEdges = getOccupiedEdges();
+
     if (endpointMode === 'start') {
-      if (!editingId && lastAssignedContractor) return;
-      setStartPointId(pointId);
-      setEndPointId('');
+      const { segStartIdx, segEndIdx } = getSegmentBoundsForPoint(pointId);
+      // If user clicked on a point whose outgoing edge is already occupied by another contractor
+      if (occupiedEdges.has(pointIndex)) {
+        let furthestOccupiedEnd = -1;
+        for (let i = segStartIdx; i < segEndIdx; i += 1) {
+          if (occupiedEdges.has(i)) {
+            furthestOccupiedEnd = i + 1;
+          }
+        }
+        if (furthestOccupiedEnd >= segEndIdx) {
+          setError('Tuyến này đã được phân công hết cho nhà thầu khác, không thể chọn thêm.');
+          return;
+        }
+        if (furthestOccupiedEnd > segStartIdx && routePoints[furthestOccupiedEnd]) {
+          setActiveSpanEndpoints(routePoints[furthestOccupiedEnd].id, '');
+          setEndpointMode('end');
+          setError(null);
+          return;
+        }
+      }
+      if (pointIndex >= segEndIdx) {
+        setError('Điểm đầu không thể là điểm cuối cùng của tuyến.');
+        return;
+      }
+      setActiveSpanEndpoints(pointId, '');
       setEndpointMode('end');
     } else {
       if (startIndex < 0 || pointIndex <= startIndex) return;
-      setEndPointId(pointId);
+      if (workingSegments && workingSegments.length > 1) {
+        const startSeg = workingSegments.find((s) =>
+          s.points.some((p) => p.id === startPointId)
+        );
+        const endSeg = workingSegments.find((s) =>
+          s.points.some((p) => p.id === pointId)
+        );
+        if (startSeg && endSeg && startSeg.id !== endSeg.id) {
+          setError('Điểm đầu và Điểm cuối phải nằm trên cùng một tuyến.');
+          return;
+        }
+      }
+      for (let i = startIndex; i < pointIndex; i += 1) {
+        if (occupiedEdges.has(i)) {
+          setError(
+            'Đoạn vừa chọn chồng lên phần đã giao cho nhà thầu khác. Vui lòng chọn lại.'
+          );
+          return;
+        }
+      }
+      setActiveSpanEndpoints(startPointId, pointId);
     }
     setError(null);
   };
@@ -127,8 +253,33 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
   const handleInsertRoutePoint = (afterIndex: number, lat: number, lng: number) => {
     const startIndex = routePoints.findIndex((point) => point.id === startPointId);
     if (endpointMode === 'end' && afterIndex < startIndex) return;
-    if (endpointMode === 'start' && !editingId && lastAssignedContractor) return;
     if (endpointMode === 'end' && afterIndex + 1 <= startIndex) return;
+
+    const occupiedEdges = getOccupiedEdges();
+    if (occupiedEdges.has(afterIndex)) {
+      const anchorPointId = routePoints[afterIndex]?.id;
+      if (anchorPointId) {
+        const { segStartIdx, segEndIdx } = getSegmentBoundsForPoint(anchorPointId);
+        let furthestOccupiedEnd = -1;
+        for (let i = segStartIdx; i < segEndIdx; i += 1) {
+          if (occupiedEdges.has(i)) {
+            furthestOccupiedEnd = i + 1;
+          }
+        }
+        if (furthestOccupiedEnd >= segEndIdx) {
+          setError('Tuyến này đã được phân công hết cho nhà thầu khác, không thể chọn thêm.');
+          return;
+        }
+        if (endpointMode === 'start' && furthestOccupiedEnd > segStartIdx && routePoints[furthestOccupiedEnd]) {
+          setActiveSpanEndpoints(routePoints[furthestOccupiedEnd].id, '');
+          setEndpointMode('end');
+          setError(null);
+          return;
+        }
+      }
+      setError('Đoạn này đã giao cho nhà thầu khác, không thể chèn điểm tại đây.');
+      return;
+    }
 
     const newPoint = {
       id: `contractor-split-${Date.now()}`,
@@ -137,18 +288,60 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
       lat,
       lng,
     };
+    const anchorId = routePoints[afterIndex]?.id;
     setWorkingPoints((current) => [
       ...current.slice(0, afterIndex + 1),
       newPoint,
       ...current.slice(afterIndex + 1),
     ]);
+    if (anchorId) {
+      setWorkingSegments((current) =>
+        current?.map((seg) => {
+          const idx = seg.points.findIndex((p) => p.id === anchorId);
+          if (idx < 0) return seg;
+          return {
+            ...seg,
+            points: [
+              ...seg.points.slice(0, idx + 1),
+              newPoint,
+              ...seg.points.slice(idx + 1),
+            ],
+          };
+        })
+      );
+    }
     if (endpointMode === 'start') {
-      setStartPointId(newPoint.id);
-      setEndPointId('');
+      setActiveSpanEndpoints(newPoint.id, '');
       setEndpointMode('end');
     } else {
-      setEndPointId(newPoint.id);
+      setActiveSpanEndpoints(startPointId, newPoint.id);
     }
+    setError(null);
+  };
+
+  const handleAddDraftSegment = () => {
+    const fresh = createEmptySpan();
+    setDraftSegments((prev) => [...prev, fresh]);
+    setActiveDraftSegmentId(fresh.id);
+    setEndpointMode('start');
+    setError(null);
+  };
+
+  const handleDeleteDraftSegment = (segmentId: string) => {
+    setDraftSegments((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((s) => s.id !== segmentId);
+      if (resolvedActiveDraftId === segmentId) {
+        setActiveDraftSegmentId(next[0]?.id || '');
+        setEndpointMode('start');
+      }
+      return next;
+    });
+  };
+
+  const handleClearActiveEndpoints = () => {
+    setActiveSpanEndpoints('', '');
+    setEndpointMode('start');
     setError(null);
   };
 
@@ -156,14 +349,20 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
     event.preventDefault();
     if (isSubmittingRef.current) return;
     const trimmedName = name.trim();
-    const startIndex = routePoints.findIndex((point) => point.id === startPointId);
-    const endIndex = routePoints.findIndex((point) => point.id === endPointId);
-    if (!trimmedName || startIndex < 0 || endIndex <= startIndex) {
-      setError('Hãy nhập tên nhà thầu và chọn Điểm đầu, Điểm cuối trên bản đồ.');
-      return;
+    const validSpans: ContractorRouteSpan[] = [];
+    for (const seg of draftSegments) {
+      const sIdx = routePoints.findIndex((p) => p.id === seg.startPointId);
+      const eIdx = routePoints.findIndex((p) => p.id === seg.endPointId);
+      if (sIdx < 0 || eIdx <= sIdx) continue;
+      validSpans.push({
+        id: seg.id,
+        startPointId: seg.startPointId,
+        endPointId: seg.endPointId,
+        routePoints: routePoints.slice(sIdx, eIdx + 1),
+      });
     }
-    if (!editingId && lastAssignedContractor && startPointId !== lastAssignedContractor.endPointId) {
-      setError(`Đoạn mới phải bắt đầu tại điểm kết thúc của nhà thầu ${lastAssignedContractor.name}.`);
+    if (!trimmedName || validSpans.length === 0) {
+      setError('Hãy nhập tên nhà thầu và chọn ít nhất 1 tuyến (Điểm đầu, Điểm cuối) trên bản đồ.');
       return;
     }
 
@@ -181,16 +380,27 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
     contractors
       .filter((contractor) => contractor.id !== editingId)
       .forEach((contractor) => {
-        const from = routePoints.findIndex((point) => point.id === contractor.startPointId);
-        const to = routePoints.findIndex((point) => point.id === contractor.endPointId);
-        if (from >= 0 && to > from) {
-          for (let index = from; index < to; index += 1) occupiedRouteIndices.add(index);
-        }
+        const cSpans =
+          contractor.segments && contractor.segments.length > 0
+            ? contractor.segments
+            : [{ startPointId: contractor.startPointId, endPointId: contractor.endPointId }];
+        cSpans.forEach((cSpan) => {
+          const from = routePoints.findIndex((point) => point.id === cSpan.startPointId);
+          const to = routePoints.findIndex((point) => point.id === cSpan.endPointId);
+          if (from >= 0 && to > from) {
+            for (let index = from; index < to; index += 1) occupiedRouteIndices.add(index);
+          }
+        });
       });
-    for (let index = startIndex; index < endIndex; index += 1) {
-      if (occupiedRouteIndices.has(index)) {
-        setError('Đoạn tuyến này đã giao cho nhà thầu khác. Hãy chọn một đoạn chưa phân công.');
-        return;
+
+    for (const span of validSpans) {
+      const sIdx = routePoints.findIndex((p) => p.id === span.startPointId);
+      const eIdx = routePoints.findIndex((p) => p.id === span.endPointId);
+      for (let index = sIdx; index < eIdx; index += 1) {
+        if (occupiedRouteIndices.has(index)) {
+          setError('Đoạn tuyến này đã giao cho nhà thầu khác. Hãy chọn một đoạn chưa phân công.');
+          return;
+        }
       }
     }
 
@@ -205,23 +415,16 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
       setError('Không thể đổi tên nhà thầu đã có nhật ký để giữ nguyên liên kết lịch sử.');
       return;
     }
-    if (
-      hasHistory &&
-      previousContractor &&
-      (previousContractor.startPointId !== startPointId ||
-        previousContractor.endPointId !== endPointId)
-    ) {
-      setError('Không thể đổi đoạn tuyến sau khi đã có nhật ký thi công cho nhà thầu này.');
-      return;
-    }
 
+    const primarySpan = validSpans[0];
     const newContractor: ProjectContractor = {
       id: editingId || `contractor-${Date.now()}`,
       name: trimmedName,
       color: previousContractor?.color || CONTRACTOR_COLORS[contractors.length % CONTRACTOR_COLORS.length],
-      startPointId,
-      endPointId,
-      routePoints: routePoints.slice(startIndex, endIndex + 1),
+      startPointId: primarySpan.startPointId,
+      endPointId: primarySpan.endPointId,
+      routePoints: validSpans.flatMap((s) => s.routePoints),
+      segments: validSpans,
       totalLengthM: Number(totalLengthM),
       totalChambers: Number(totalChambers),
       contractValueVND: Number(contractValueVND),
@@ -248,6 +451,7 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
       if (await onUpdateProject({
         ...project,
         points: workingPoints,
+        routeSegments: workingSegments,
         contractors: nextContractors,
         contractor: nextContractors.map((item) => item.name).join(', ') || 'Chưa phân công',
         totalLengthM: nextContractors.reduce((sum, item) => sum + item.totalLengthM, 0),
@@ -570,12 +774,21 @@ export const ProjectContractorsPanel: React.FC<ProjectContractorsPanelProps> = (
                 <ProjectContractorRoutePicker
                   isFullHeight={true}
                   points={workingPoints}
-                  contractors={contractors}
+                  routeSegments={workingSegments}
+                  contractors={contractors.filter((contractor) => contractor.id !== editingId)}
                   startPointId={startPointId}
                   endPointId={endPointId}
+                  draftSegments={draftSegments}
+                  activeDraftSegmentId={resolvedActiveDraftId}
+                  onSelectDraftSegment={(id) => {
+                    setActiveDraftSegmentId(id);
+                    setEndpointMode('start');
+                  }}
+                  onAddDraftSegment={handleAddDraftSegment}
+                  onDeleteDraftSegment={handleDeleteDraftSegment}
+                  onClearEndpoints={handleClearActiveEndpoints}
                   endpointMode={endpointMode}
                   onEndpointModeChange={setEndpointMode}
-                  lockedStartPointId={!editingId ? lastAssignedContractor?.endPointId : undefined}
                   onSelectPoint={handleSelectRoutePoint}
                   onInsertPoint={handleInsertRoutePoint}
                 />

@@ -138,214 +138,242 @@ export const GisMap: React.FC<GisMapProps> = ({
     const hasFocus = Boolean(focusedProjectId);
 
     visibleProjects.forEach((project) => {
-      const routePoints = (project.points || []).filter(
-        (pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng)
-      );
-      if (routePoints.length === 0) return;
-
-      const coords = routePoints.map((pt) => [pt.lat, pt.lng] as [number, number]);
-      allBoundsCoords.push(...coords);
+      const segments =
+        project.routeSegments && project.routeSegments.length > 0
+          ? project.routeSegments
+          : (project.points || []).length > 0
+          ? [{ id: 'default', name: project.name, points: project.points }]
+          : [];
 
       const isFocused = focusedProjectId === project.id;
-      if (isFocused) {
-        focusedBoundsCoords.push(...coords);
-      }
-
       const routeColor = isFocused ? HIGHLIGHT_ROUTE_COLOR : BASE_ROUTE_COLOR;
       const pct =
         project.totalLengthM > 0
           ? Math.min(100, Math.round((project.completedLengthM / project.totalLengthM) * 100))
           : 0;
-      const tooltipHtml = `<div style="font-weight:800;font-size:12px;color:#0f172a;">${escapeHtml(
-        project.name
-      )}</div><div style="font-size:11px;color:#475569;margin-top:1px;">${escapeHtml(
-        project.code || ''
-      )} · <strong>${pct}%</strong> (${formatNumber(project.completedLengthM)}/${formatNumber(
-        project.totalLengthM
-      )} m)</div>`;
+      const hasMultiSegments = segments.length > 1;
 
-      if (coords.length === 1) {
-        const marker = L.circleMarker(coords[0], {
-          radius: isFocused ? 9 : 6,
-          color: '#ffffff',
-          weight: 2,
-          fillColor: routeColor,
-          fillOpacity: hasFocus && !isFocused ? 0.35 : 0.95,
-        }).addTo(layersGroup);
-        marker.bindTooltip(tooltipHtml, { sticky: true, direction: 'top' });
-        marker.on('click', () => handleSelectRoute(project.id));
-        return;
-      }
+      segments.forEach((seg) => {
+        const routePoints = (seg.points || []).filter(
+          (pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng)
+        );
+        if (routePoints.length === 0) return;
 
-      if (isFocused) {
-        // White halo underneath focused route so it stands out sharply
-        L.polyline(coords, {
-          color: '#ffffff',
-          weight: 14,
-          opacity: 0.92,
-          lineCap: 'round',
-          lineJoin: 'round',
-          interactive: false,
-        }).addTo(layersGroup);
+        const coords = routePoints.map((pt) => [pt.lat, pt.lng] as [number, number]);
+        allBoundsCoords.push(...coords);
+        if (isFocused) {
+          focusedBoundsCoords.push(...coords);
+        }
 
-        const contractors = project.contractors || [];
-        const pointIndex = new Map(routePoints.map((pt, idx) => [pt.id, idx]));
-        const assignedRoutes = contractors
-          .map((contractor) => ({
-            contractor,
-            start: pointIndex.get(contractor.startPointId),
-            end: pointIndex.get(contractor.endPointId),
-            coordinates: contractor.routePoints
-              .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng))
-              .map((pt) => [pt.lat, pt.lng] as [number, number]),
-          }))
-          .filter(
-            (r) =>
-              r.start !== undefined &&
-              r.end !== undefined &&
-              r.end > r.start &&
-              r.coordinates.length > 1
-          )
-          .sort((a, b) => a.start! - b.start!);
+        const segTitle = hasMultiSegments ? `${project.name} — ${seg.name}` : project.name;
+        const tooltipHtml = `<div style="font-weight:800;font-size:12px;color:#0f172a;">${escapeHtml(
+          segTitle
+        )}</div><div style="font-size:11px;color:#475569;margin-top:1px;">${escapeHtml(
+          project.code || ''
+        )} · <strong>${pct}%</strong> (${formatNumber(project.completedLengthM)}/${formatNumber(
+          project.totalLengthM
+        )} m)</div>`;
 
-        if (assignedRoutes.length > 0) {
-          let nextIdx = 0;
-          const addUnassigned = (s: number, e: number) => {
-            const seg = coords.slice(s, e + 1);
-            if (seg.length < 2) return;
-            L.polyline(seg, {
+        if (coords.length === 1) {
+          const marker = L.circleMarker(coords[0], {
+            radius: isFocused ? 9 : 6,
+            color: '#ffffff',
+            weight: 2,
+            fillColor: routeColor,
+            fillOpacity: hasFocus && !isFocused ? 0.35 : 0.95,
+          }).addTo(layersGroup);
+          marker.bindTooltip(tooltipHtml, { sticky: true, direction: 'top' });
+          marker.on('click', () => handleSelectRoute(project.id));
+          return;
+        }
+
+        if (isFocused) {
+          L.polyline(coords, {
+            color: '#ffffff',
+            weight: 14,
+            opacity: 0.92,
+            lineCap: 'round',
+            lineJoin: 'round',
+            interactive: false,
+          }).addTo(layersGroup);
+
+          const contractors = project.contractors || [];
+          const pointIndex = new Map(routePoints.map((pt, idx) => [pt.id, idx]));
+          const assignedRoutes = contractors
+            .flatMap((contractor) => {
+              const spans =
+                contractor.segments && contractor.segments.length > 0
+                  ? contractor.segments
+                  : [
+                      {
+                        startPointId: contractor.startPointId,
+                        endPointId: contractor.endPointId,
+                        routePoints: contractor.routePoints,
+                      },
+                    ];
+              return spans.map((span) => ({
+                contractor,
+                start: pointIndex.get(span.startPointId),
+                end: pointIndex.get(span.endPointId),
+                coordinates: span.routePoints
+                  .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng))
+                  .map((pt) => [pt.lat, pt.lng] as [number, number]),
+              }));
+            })
+            .filter(
+              (r) =>
+                r.start !== undefined &&
+                r.end !== undefined &&
+                r.end > r.start &&
+                r.coordinates.length > 1
+            )
+            .sort((a, b) => a.start! - b.start!);
+
+          if (assignedRoutes.length > 0) {
+            let nextIdx = 0;
+            const addUnassigned = (s: number, e: number) => {
+              const sCoords = coords.slice(s, e + 1);
+              if (sCoords.length < 2) return;
+              L.polyline(sCoords, {
+                color: '#64748b',
+                weight: 6,
+                opacity: 0.75,
+                dashArray: '8 10',
+                lineCap: 'round',
+                lineJoin: 'round',
+              })
+                .bindTooltip(tooltipHtml, { sticky: true, direction: 'top' })
+                .addTo(layersGroup);
+            };
+
+            assignedRoutes.forEach(({ contractor, start, end, coordinates }) => {
+              if ((start as number) > nextIdx) {
+                addUnassigned(nextIdx, start as number);
+              }
+              const cColor = /^#[\da-f]{6}$/i.test(contractor.color)
+                ? contractor.color
+                : routeColor;
+              const segLine = L.polyline(coordinates, {
+                color: cColor,
+                weight: 9,
+                opacity: 1,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }).addTo(layersGroup);
+              segLine.bindTooltip(
+                `<strong>${escapeHtml(segTitle)}</strong><br/>Nhà thầu: ${escapeHtml(
+                  contractor.name
+                )}`,
+                { sticky: true, direction: 'top' }
+              );
+
+              const arrowIdx = Math.max(
+                0,
+                Math.min(coordinates.length - 2, Math.floor((coordinates.length - 1) / 2))
+              );
+              const from = coordinates[arrowIdx];
+              const to = coordinates[arrowIdx + 1];
+              const angle = Math.atan2(-(to[0] - from[0]), to[1] - from[1]) * (180 / Math.PI);
+              L.marker([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2], {
+                icon: L.divIcon({
+                  className: 'contractor-route-arrow',
+                  html: `<span style="display:block;color:${cColor};font-size:24px;font-weight:900;line-height:22px;text-shadow:0 1px 3px white,1px 0 3px white,-1px 0 3px white;transform:rotate(${angle}deg)">➤</span>`,
+                  iconSize: [22, 22],
+                  iconAnchor: [11, 11],
+                }),
+                interactive: false,
+              }).addTo(layersGroup);
+
+              nextIdx = Math.max(nextIdx, end as number);
+            });
+
+            if (nextIdx < coords.length - 1) {
+              addUnassigned(nextIdx, coords.length - 1);
+            }
+          } else if (contractors.length > 0) {
+            const line = L.polyline(coords, {
               color: '#64748b',
               weight: 6,
               opacity: 0.75,
               dashArray: '8 10',
               lineCap: 'round',
               lineJoin: 'round',
-            })
-              .bindTooltip(tooltipHtml, { sticky: true, direction: 'top' })
-              .addTo(layersGroup);
-          };
-
-          assignedRoutes.forEach(({ contractor, start, end, coordinates }) => {
-            if ((start as number) > nextIdx) {
-              addUnassigned(nextIdx, start as number);
-            }
-            const cColor = /^#[\da-f]{6}$/i.test(contractor.color)
-              ? contractor.color
-              : routeColor;
-            const segLine = L.polyline(coordinates, {
-              color: cColor,
+            }).addTo(layersGroup);
+            line.bindTooltip(
+              `${tooltipHtml}<div style="font-size:11px;color:#64748b;margin-top:2px;">Chưa phân công nhà thầu</div>`,
+              { sticky: true, direction: 'top' }
+            );
+          } else {
+            const line = L.polyline(coords, {
+              color: routeColor,
               weight: 9,
               opacity: 1,
               lineCap: 'round',
               lineJoin: 'round',
             }).addTo(layersGroup);
-            segLine.bindTooltip(
-              `<strong>${escapeHtml(project.name)}</strong><br/>Nhà thầu: ${escapeHtml(
-                contractor.name
-              )}`,
-              { sticky: true, direction: 'top' }
-            );
+            line.bindTooltip(tooltipHtml, { sticky: true, direction: 'top' });
+          }
 
-            // Direction arrow
-            const arrowIdx = Math.max(
-              0,
-              Math.min(coordinates.length - 2, Math.floor((coordinates.length - 1) / 2))
-            );
-            const from = coordinates[arrowIdx];
-            const to = coordinates[arrowIdx + 1];
-            const angle = Math.atan2(-(to[0] - from[0]), to[1] - from[1]) * (180 / Math.PI);
-            L.marker([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2], {
-              icon: L.divIcon({
-                className: 'contractor-route-arrow',
-                html: `<span style="display:block;color:${cColor};font-size:24px;font-weight:900;line-height:22px;text-shadow:0 1px 3px white,1px 0 3px white,-1px 0 3px white;transform:rotate(${angle}deg)">➤</span>`,
-                iconSize: [22, 22],
-                iconAnchor: [11, 11],
-              }),
+          L.circleMarker(coords[0], {
+            radius: 7,
+            color: '#ffffff',
+            weight: 2.5,
+            fillColor: '#16a34a',
+            fillOpacity: 1,
+          })
+            .bindTooltip(`Điểm đầu (${escapeHtml(seg.name)})`, { direction: 'top' })
+            .addTo(layersGroup);
+
+          L.circleMarker(coords[coords.length - 1], {
+            radius: 7,
+            color: '#ffffff',
+            weight: 2.5,
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+          })
+            .bindTooltip(`Điểm cuối (${escapeHtml(seg.name)})`, { direction: 'top' })
+            .addTo(layersGroup);
+        } else {
+          const baseWeight = hasFocus ? 4 : 6;
+          const baseOpacity = hasFocus ? 0.3 : 0.88;
+
+          if (!hasFocus) {
+            L.polyline(coords, {
+              color: '#ffffff',
+              weight: 9,
+              opacity: 0.7,
+              lineCap: 'round',
+              lineJoin: 'round',
               interactive: false,
             }).addTo(layersGroup);
-
-            nextIdx = Math.max(nextIdx, end as number);
-          });
-
-          if (nextIdx < coords.length - 1) {
-            addUnassigned(nextIdx, coords.length - 1);
           }
-        } else {
+
           const line = L.polyline(coords, {
             color: routeColor,
-            weight: 9,
-            opacity: 1,
+            weight: baseWeight,
+            opacity: baseOpacity,
             lineCap: 'round',
             lineJoin: 'round',
           }).addTo(layersGroup);
-          line.bindTooltip(tooltipHtml, { sticky: true, direction: 'top' });
-        }
 
-        // Start & End markers for focused route
-        L.circleMarker(coords[0], {
-          radius: 7,
-          color: '#ffffff',
-          weight: 2.5,
-          fillColor: '#16a34a',
-          fillOpacity: 1,
-        })
-          .bindTooltip(`Điểm đầu: ${escapeHtml(project.startPointName || project.name)}`, {
+          line.bindTooltip(tooltipHtml, {
+            sticky: true,
             direction: 'top',
-          })
-          .addTo(layersGroup);
+            opacity: 0.96,
+          });
 
-        L.circleMarker(coords[coords.length - 1], {
-          radius: 7,
-          color: '#ffffff',
-          weight: 2.5,
-          fillColor: '#dc2626',
-          fillOpacity: 1,
-        })
-          .bindTooltip(`Điểm cuối: ${escapeHtml(project.endPointName || project.name)}`, {
-            direction: 'top',
-          })
-          .addTo(layersGroup);
-      } else {
-        // Non-focused route (either overview mode or dimmed background route)
-        const baseWeight = hasFocus ? 4 : 6;
-        const baseOpacity = hasFocus ? 0.3 : 0.88;
-
-        if (!hasFocus) {
-          L.polyline(coords, {
-            color: '#ffffff',
-            weight: 9,
-            opacity: 0.7,
-            lineCap: 'round',
-            lineJoin: 'round',
-            interactive: false,
-          }).addTo(layersGroup);
+          line.on('mouseover', () => {
+            line.setStyle({ color: HOVER_ROUTE_COLOR, weight: 9, opacity: 1 });
+            line.bringToFront();
+          });
+          line.on('mouseout', () => {
+            line.setStyle({ color: BASE_ROUTE_COLOR, weight: baseWeight, opacity: baseOpacity });
+          });
+          line.on('click', () => {
+            handleSelectRoute(project.id);
+          });
         }
-
-        const line = L.polyline(coords, {
-          color: routeColor,
-          weight: baseWeight,
-          opacity: baseOpacity,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(layersGroup);
-
-        line.bindTooltip(tooltipHtml, {
-          sticky: true,
-          direction: 'top',
-          opacity: 0.96,
-        });
-
-        line.on('mouseover', () => {
-          line.setStyle({ color: HOVER_ROUTE_COLOR, weight: 9, opacity: 1 });
-          line.bringToFront();
-        });
-        line.on('mouseout', () => {
-          line.setStyle({ color: BASE_ROUTE_COLOR, weight: baseWeight, opacity: baseOpacity });
-        });
-        line.on('click', () => {
-          handleSelectRoute(project.id);
-        });
-      }
+      });
     });
 
     const targetCoords =

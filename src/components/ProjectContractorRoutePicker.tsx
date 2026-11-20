@@ -1,15 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { LocateFixed, Maximize2, Minimize2, Search } from 'lucide-react';
-import { ProjectContractor, RouteCoordinatePoint } from '../types/undergrounding';
+import { LocateFixed, Maximize2, Minimize2, Plus, Search, X } from 'lucide-react';
+import {
+  ProjectContractor,
+  ProjectRouteSegment,
+  RouteCoordinatePoint,
+} from '../types/undergrounding';
 
 type EndpointMode = 'start' | 'end';
 
+export interface ContractorDraftSpan {
+  id: string;
+  startPointId: string;
+  endPointId: string;
+}
+
 interface ProjectContractorRoutePickerProps {
   points: RouteCoordinatePoint[];
+  routeSegments?: ProjectRouteSegment[];
   contractors: ProjectContractor[];
   startPointId: string;
   endPointId: string;
+  draftSegments?: ContractorDraftSpan[];
+  activeDraftSegmentId?: string;
+  onSelectDraftSegment?: (segmentId: string) => void;
+  onAddDraftSegment?: () => void;
+  onDeleteDraftSegment?: (segmentId: string) => void;
+  onClearEndpoints?: () => void;
   endpointMode: EndpointMode;
   onEndpointModeChange?: (mode: EndpointMode) => void;
   lockedStartPointId?: string;
@@ -20,9 +37,16 @@ interface ProjectContractorRoutePickerProps {
 
 export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePickerProps> = ({
   points,
+  routeSegments,
   contractors,
   startPointId,
   endPointId,
+  draftSegments,
+  activeDraftSegmentId,
+  onSelectDraftSegment,
+  onAddDraftSegment,
+  onDeleteDraftSegment,
+  onClearEndpoints,
   endpointMode,
   onEndpointModeChange,
   lockedStartPointId,
@@ -36,6 +60,7 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
   const focusedPointIdRef = useRef<string | null>(null);
   const hasFittedBoundsRef = useRef(false);
   const pointsRef = useRef(points);
+  const segmentsRef = useRef(routeSegments);
   const [pointQuery, setPointQuery] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -47,6 +72,7 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
     startPointId,
   });
   pointsRef.current = points;
+  segmentsRef.current = routeSegments;
   selectionRef.current = {
     onSelectPoint,
     onInsertPoint,
@@ -146,8 +172,24 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       let nearestSegmentIndex = -1;
       let nearestSegmentPoint: L.Point | null = null;
       let nearestSegmentDistance = Number.POSITIVE_INFINITY;
+      const validSegPairs = new Set<string>();
+      const activeSegments = segmentsRef.current;
+      if (activeSegments && activeSegments.length > 0) {
+        activeSegments.forEach((seg) => {
+          for (let i = 0; i < seg.points.length - 1; i += 1) {
+            validSegPairs.add(`${seg.points[i].id}->${seg.points[i + 1].id}`);
+          }
+        });
+      }
+
       for (let index = 0; index < routePoints.length - 1; index += 1) {
         if (index < minimumSegmentIndex) continue;
+        if (
+          validSegPairs.size > 0 &&
+          !validSegPairs.has(`${routePoints[index].id}->${routePoints[index + 1].id}`)
+        ) {
+          continue;
+        }
         const from = projected[index];
         const to = projected[index + 1];
         if (!from || !to) continue;
@@ -212,28 +254,33 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
     const startIndex = validPoints.findIndex((point) => point.id === startPointId);
     const endIndex = validPoints.findIndex((point) => point.id === endPointId);
 
-    if (coordinates.length > 1) {
-      L.polyline(coordinates, {
-        color: '#475569',
-        weight: 5,
-        opacity: 0.55,
-        dashArray: '8 9',
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(layers);
-    }
+    const segmentsToDraw: ProjectRouteSegment[] =
+      routeSegments && routeSegments.length > 0
+        ? routeSegments
+        : [{ id: 'default', name: 'Tuyến chính', points: validPoints }];
+
+    segmentsToDraw.forEach((seg) => {
+      const segCoords = (seg.points || [])
+        .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng))
+        .map((pt) => [pt.lat, pt.lng] as [number, number]);
+      if (segCoords.length > 1) {
+        L.polyline(segCoords, {
+          color: '#475569',
+          weight: 5,
+          opacity: 0.55,
+          dashArray: '8 9',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(layers);
+      }
+    });
 
     contractors.forEach((contractor) => {
-      const contractorStartIndex = validPoints.findIndex(
-        (point) => point.id === contractor.startPointId
-      );
-      const contractorEndIndex = validPoints.findIndex(
-        (point) => point.id === contractor.endPointId
-      );
-      if (contractorStartIndex < 0 || contractorEndIndex <= contractorStartIndex) return;
-      const contractorCoordinates = validPoints
-        .slice(contractorStartIndex, contractorEndIndex + 1)
-        .map((point) => [point.lat, point.lng] as [number, number]);
+      const spans =
+        contractor.segments && contractor.segments.length > 0
+          ? contractor.segments
+          : [{ id: contractor.id, startPointId: contractor.startPointId, endPointId: contractor.endPointId }];
+
       const safeName = contractor.name.replace(
         /[&<>"']/g,
         (character) =>
@@ -245,20 +292,50 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
             "'": '&#39;',
           })[character] || character
       );
-      L.polyline(contractorCoordinates, {
-        color: contractor.color,
-        weight: 7,
-        opacity: 0.9,
+
+      spans.forEach((span) => {
+        const contractorStartIndex = validPoints.findIndex(
+          (point) => point.id === span.startPointId
+        );
+        const contractorEndIndex = validPoints.findIndex(
+          (point) => point.id === span.endPointId
+        );
+        if (contractorStartIndex < 0 || contractorEndIndex <= contractorStartIndex) return;
+        const contractorCoordinates = validPoints
+          .slice(contractorStartIndex, contractorEndIndex + 1)
+          .map((point) => [point.lat, point.lng] as [number, number]);
+        L.polyline(contractorCoordinates, {
+          color: contractor.color,
+          weight: 7,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        })
+          .bindTooltip(safeName, {
+            permanent: true,
+            direction: 'top',
+            className: 'contractor-route-label',
+            opacity: 0.95,
+          })
+          .addTo(layers);
+      });
+    });
+
+    (draftSegments || []).forEach((span) => {
+      if (span.id === activeDraftSegmentId) return;
+      const sIdx = validPoints.findIndex((p) => p.id === span.startPointId);
+      const eIdx = validPoints.findIndex((p) => p.id === span.endPointId);
+      if (sIdx < 0 || eIdx <= sIdx) return;
+      const spanCoords = validPoints
+        .slice(sIdx, eIdx + 1)
+        .map((p) => [p.lat, p.lng] as [number, number]);
+      L.polyline(spanCoords, {
+        color: '#4f46e5',
+        weight: 8,
+        opacity: 0.95,
         lineCap: 'round',
         lineJoin: 'round',
-      })
-        .bindTooltip(safeName, {
-          permanent: true,
-          direction: 'top',
-          className: 'contractor-route-label',
-          opacity: 0.95,
-        })
-        .addTo(layers);
+      }).addTo(layers);
     });
 
     if (startIndex >= 0 && endIndex > startIndex) {
@@ -308,7 +385,7 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
       }
     }
     map.invalidateSize({ pan: false });
-  }, [points, contractors, startPointId, endPointId]);
+  }, [points, routeSegments, contractors, startPointId, endPointId, draftSegments, activeDraftSegmentId]);
 
   return (
     <div
@@ -322,6 +399,56 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
     >
       {/* Compact Single-Header Toolbar */}
       <div className="flex flex-col gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-1.5">
+        {draftSegments && onSelectDraftSegment && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/70 pb-1.5">
+            {draftSegments.map((seg, idx) => {
+              const isActive = seg.id === activeDraftSegmentId;
+              const isDone = Boolean(seg.startPointId && seg.endPointId);
+              return (
+                <div
+                  key={seg.id}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-bold ${
+                    isActive
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : isDone
+                      ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
+                      : 'border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelectDraftSegment(seg.id)}
+                  >
+                    Tuyến {idx + 1} {isDone ? '✓' : ''}
+                  </button>
+                  {draftSegments.length > 1 && onDeleteDraftSegment && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteDraftSegment(seg.id)}
+                      title="Xóa tuyến này"
+                      className={`rounded p-0.5 ${
+                        isActive ? 'hover:bg-white/20' : 'text-red-600 hover:bg-red-100'
+                      }`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {onAddDraftSegment && (
+              <button
+                type="button"
+                onClick={onAddDraftSegment}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
+              >
+                <Plus className="h-3 w-3" />
+                Thêm tuyến thực hiện
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-1.5">
           {onEndpointModeChange && (
             <div className="flex items-center gap-1" role="group" aria-label="Chọn loại mốc tuyến">
@@ -358,6 +485,17 @@ export const ProjectContractorRoutePicker: React.FC<ProjectContractorRoutePicker
                   </span>
                 </button>
               ))}
+              {onClearEndpoints && (startPointId || endPointId) && (
+                <button
+                  type="button"
+                  onClick={onClearEndpoints}
+                  title="Xóa điểm đầu & điểm cuối đã chọn"
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-100"
+                >
+                  <X className="h-3 w-3" />
+                  Xóa chọn
+                </button>
+              )}
             </div>
           )}
 

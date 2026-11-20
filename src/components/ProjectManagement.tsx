@@ -5,6 +5,7 @@ import {
   DailyLogEntry,
   UndergroundProject,
   PlanType,
+  ProjectRouteSegment,
   ProjectStatus,
   RouteCoordinatePoint,
 } from '../types/undergrounding';
@@ -89,7 +90,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [backupStatusIsError, setBackupStatusIsError] = useState(false);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
-  const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | ProjectStatus>('in_progress');
+  const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | ProjectStatus>('all');
   const [contractorPanelProjectId, setContractorPanelProjectId] = useState<string | null>(null);
   const [openStatusMenuProjectId, setOpenStatusMenuProjectId] = useState<string | null>(null);
   const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
@@ -115,46 +116,99 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [startDate, setStartDate] = useState('');
   const [contractDurationDays, setContractDurationDays] = useState('');
   const [finishDate, setFinishDate] = useState('');
-  const [startPointName, setStartPointName] = useState('');
-  const [endPointName, setEndPointName] = useState('');
 
-  // Coordinates: Start, Turn points, End — Empty by default (no sample points)
-  const [startPoint, setStartPoint] = useState<{ lat: number; lng: number } | null>(null);
-  const [endPoint, setEndPoint] = useState<{ lat: number; lng: number } | null>(null);
-  const [turnPoints, setTurnPoints] = useState<
-    Array<{ id: string; name: string; lat: number; lng: number }>
-  >([]);
+  // Multi-segment route drawing state
+  const createDefaultSegment = (index = 1): ProjectRouteSegment => ({
+    id: `seg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: `Tuyến ${index}`,
+    points: [],
+  });
+  const [routeSegments, setRouteSegments] = useState<ProjectRouteSegment[]>(() => [
+    createDefaultSegment(1),
+  ]);
+  const [activeSegmentId, setActiveSegmentId] = useState<string>(() => '');
 
-  const handlePlaceRoutePoint = (
-    mode: 'start' | 'turn' | 'end',
+  const resolvedActiveSegmentId =
+    routeSegments.some((s) => s.id === activeSegmentId)
+      ? activeSegmentId
+      : routeSegments[0]?.id || '';
+
+  const handleAddRouteSegment = () => {
+    const newSeg = createDefaultSegment(routeSegments.length + 1);
+    setRouteSegments((prev) => [...prev, newSeg]);
+    setActiveSegmentId(newSeg.id);
+    setFormError(null);
+  };
+
+  const handleDeleteRouteSegment = (segmentId: string) => {
+    setRouteSegments((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((s) => s.id !== segmentId);
+      if (resolvedActiveSegmentId === segmentId) {
+        setActiveSegmentId(next[0]?.id || '');
+      }
+      return next;
+    });
+  };
+
+  const handleRenameRouteSegment = (segmentId: string, newName: string) => {
+    setRouteSegments((prev) =>
+      prev.map((s) => (s.id === segmentId ? { ...s, name: newName } : s))
+    );
+  };
+
+  const handleAddPointToActiveSegment = (
     lat: number,
     lng: number,
     placeName?: string
   ) => {
     setFormError(null);
-    if (mode === 'start') {
-      setStartPoint({ lat, lng });
-      if (placeName) setStartPointName(placeName);
-    } else if (mode === 'end') {
-      setEndPoint({ lat, lng });
-      if (placeName) setEndPointName(placeName);
-    } else {
-      setTurnPoints((current) => [
-        ...current,
-        {
-          id: `tp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    const targetId = resolvedActiveSegmentId;
+    setRouteSegments((prev) =>
+      prev.map((seg) => {
+        if (seg.id !== targetId) return seg;
+        const idx = seg.points.length;
+        const nextPt: RouteCoordinatePoint = {
+          id: `pt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           name: placeName
-            ? `Điểm cua ${current.length + 1}: ${placeName}`
-            : `Điểm cua ${current.length + 1}`,
+            ? `Điểm ${idx + 1}: ${placeName}`
+            : `Điểm ${idx + 1} (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+          type: idx === 0 ? 'start' : 'turn',
           lat,
           lng,
-        },
-      ]);
-    }
+        };
+        return { ...seg, points: [...seg.points, nextPt] };
+      })
+    );
   };
 
-  const handleRemoveTurnPoint = (id: string) => {
-    setTurnPoints((current) => current.filter((p) => p.id !== id));
+  const handleUndoPointInActiveSegment = () => {
+    const targetId = resolvedActiveSegmentId;
+    setRouteSegments((prev) =>
+      prev.map((seg) =>
+        seg.id === targetId
+          ? { ...seg, points: seg.points.slice(0, -1) }
+          : seg
+      )
+    );
+  };
+
+  const handleRemovePointFromActiveSegment = (pointId: string) => {
+    const targetId = resolvedActiveSegmentId;
+    setRouteSegments((prev) =>
+      prev.map((seg) =>
+        seg.id === targetId
+          ? { ...seg, points: seg.points.filter((pt) => pt.id !== pointId) }
+          : seg
+      )
+    );
+  };
+
+  const handleClearActiveSegment = () => {
+    const targetId = resolvedActiveSegmentId;
+    setRouteSegments((prev) =>
+      prev.map((seg) => (seg.id === targetId ? { ...seg, points: [] } : seg))
+    );
   };
 
   const getAutoPauseStartDate = (project: UndergroundProject): { startDate: string; lastWorkDate?: string } => {
@@ -291,12 +345,6 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     }
   };
 
-  const handleUpdateTurnPointName = (id: string, nextName: string) => {
-    setTurnPoints((current) =>
-      current.map((point) => (point.id === id ? { ...point, name: nextName } : point))
-    );
-  };
-
   const resetForm = () => {
     setName('');
     setContractCode('');
@@ -306,11 +354,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setStartDate('');
     setContractDurationDays('');
     setFinishDate('');
-    setStartPointName('');
-    setEndPointName('');
-    setStartPoint(null);
-    setEndPoint(null);
-    setTurnPoints([]);
+    const freshSeg = createDefaultSegment(1);
+    setRouteSegments([freshSeg]);
+    setActiveSegmentId(freshSeg.id);
     setEditingProjectId(null);
     setFormStep(1);
     setFormError(null);
@@ -368,8 +414,20 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setFormStep(1);
       return;
     }
-    if (!startPoint || !endPoint) {
-      setFormError('Vui lòng chấm đủ Điểm đầu và Điểm cuối trên bản đồ.');
+    const validSegments: ProjectRouteSegment[] = routeSegments
+      .filter((seg) => seg.points.length >= 2)
+      .map((seg) => ({
+        ...seg,
+        points: seg.points.map((pt, idx, arr) => ({
+          ...pt,
+          type: idx === 0 ? 'start' : idx === arr.length - 1 ? 'end' : 'turn',
+          lat: Number(pt.lat),
+          lng: Number(pt.lng),
+        })),
+      }));
+
+    if (validSegments.length === 0) {
+      setFormError('Vui lòng chấm ít nhất 1 tuyến gồm từ 2 điểm trở lên trên bản đồ.');
       setFormStep(2);
       return;
     }
@@ -378,48 +436,20 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setIsSubmitting(true);
     try {
 
+    const firstSeg = validSegments[0];
+    const lastSeg = validSegments[validSegments.length - 1];
     const resolvedStartName =
-      startPointName.trim() ||
-      `Điểm đầu (${startPoint.lat.toFixed(5)}, ${startPoint.lng.toFixed(5)})`;
+      firstSeg.points[0]?.name ||
+      `Điểm đầu (${firstSeg.points[0].lat.toFixed(5)}, ${firstSeg.points[0].lng.toFixed(5)})`;
     const resolvedEndName =
-      endPointName.trim() ||
-      `Điểm cuối (${endPoint.lat.toFixed(5)}, ${endPoint.lng.toFixed(5)})`;
+      lastSeg.points[lastSeg.points.length - 1]?.name ||
+      `Điểm cuối (${lastSeg.points[lastSeg.points.length - 1].lat.toFixed(5)}, ${lastSeg.points[lastSeg.points.length - 1].lng.toFixed(5)})`;
 
     const existingProject = editingProjectId
       ? projects.find((project) => project.id === editingProjectId)
       : undefined;
 
-    const points: RouteCoordinatePoint[] = [
-      {
-        id:
-          existingProject?.points.find((point) => point.type === 'start')?.id ||
-          `pt-start-${Date.now()}`,
-        name: resolvedStartName.startsWith('Điểm bắt đầu:')
-          ? resolvedStartName
-          : `Điểm bắt đầu: ${resolvedStartName}`,
-        type: 'start',
-        lat: Number(startPoint.lat),
-        lng: Number(startPoint.lng),
-      },
-      ...turnPoints.map((tp) => ({
-        id: tp.id,
-        name: tp.name,
-        type: 'turn' as const,
-        lat: Number(tp.lat),
-        lng: Number(tp.lng),
-      })),
-      {
-        id:
-          existingProject?.points.find((point) => point.type === 'end')?.id ||
-          `pt-end-${Date.now()}`,
-        name: resolvedEndName.startsWith('Điểm kết thúc:')
-          ? resolvedEndName
-          : `Điểm kết thúc: ${resolvedEndName}`,
-        type: 'end',
-        lat: Number(endPoint.lat),
-        lng: Number(endPoint.lng),
-      },
-    ];
+    const points: RouteCoordinatePoint[] = validSegments.flatMap((seg) => seg.points);
 
     if (editingProjectId) {
       const existing = existingProject;
@@ -473,6 +503,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
           startPointName: resolvedStartName,
           endPointName: resolvedEndName,
           points,
+          routeSegments: validSegments,
           contractors: updatedContractors,
         };
         if (!(await onUpdateProject(updated))) return;
@@ -504,13 +535,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         completedLengthM: 0,
         completedChambers: 0,
         points,
+        routeSegments: validSegments,
         chambers: [
           {
             id: `cb-${Date.now()}-1`,
             code: `BC-${code}-01`,
             type: 'Bể cáp kéo tiêu chuẩn (B1)',
             dimensions: '1.8m x 1.2m x 1.4m',
-            position: [Number(startPoint.lat), Number(startPoint.lng)],
+            position: [Number(points[0].lat), Number(points[0].lng)],
             locationDescription: resolvedStartName,
             status: 'planned',
             depthMeters: 1.4,
@@ -554,25 +586,23 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     setContractDurationDays(
       computedDays !== null && computedDays >= 0 ? String(computedDays) : ''
     );
-    setStartPointName(project.startPointName);
-    setEndPointName(project.endPointName);
-
-    const startPt = project.points.find((p) => p.type === 'start') || project.points[0];
-    const endPt =
-      project.points.find((p) => p.type === 'end') ||
-      (project.points.length > 1 ? project.points[project.points.length - 1] : undefined);
-    const turns = project.points.filter((p) => p.type === 'turn');
-
-    setStartPoint(startPt ? { lat: startPt.lat, lng: startPt.lng } : null);
-    setEndPoint(endPt ? { lat: endPt.lat, lng: endPt.lng } : null);
-    setTurnPoints(
-      turns.map((t) => ({
-        id: t.id,
-        name: t.name,
-        lat: t.lat,
-        lng: t.lng,
-      }))
-    );
+    const initialSegments: ProjectRouteSegment[] =
+      project.routeSegments && project.routeSegments.length > 0
+        ? project.routeSegments.map((seg) => ({
+            ...seg,
+            points: seg.points.map((pt) => ({ ...pt })),
+          }))
+        : project.points.length > 0
+        ? [
+            {
+              id: `seg-${project.id}-1`,
+              name: 'Tuyến 1',
+              points: project.points.map((pt) => ({ ...pt })),
+            },
+          ]
+        : [createDefaultSegment(1)];
+    setRouteSegments(initialSegments);
+    setActiveSegmentId(initialSegments[0]?.id || '');
     setFormStep(1);
     setFormError(null);
     setIsProjectFormOpen(true);
@@ -1243,24 +1273,16 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                 <div className="flex flex-1 min-h-0 flex-col bg-slate-100 sm:p-2">
                   <RouteCoordinatePicker
                     isFullScreen={true}
-                    startPoint={startPoint}
-                    endPoint={endPoint}
-                    startPointName={startPointName}
-                    endPointName={endPointName}
-                    onStartPointNameChange={setStartPointName}
-                    onEndPointNameChange={setEndPointName}
-                    turnPoints={turnPoints}
-                    onPlacePoint={handlePlaceRoutePoint}
-                    onRemoveTurnPoint={handleRemoveTurnPoint}
-                    onUpdateTurnPointName={handleUpdateTurnPointName}
-                    onClearStartPoint={() => {
-                      setStartPoint(null);
-                      setStartPointName('');
-                    }}
-                    onClearEndPoint={() => {
-                      setEndPoint(null);
-                      setEndPointName('');
-                    }}
+                    segments={routeSegments}
+                    activeSegmentId={resolvedActiveSegmentId}
+                    onSelectSegment={setActiveSegmentId}
+                    onAddSegment={handleAddRouteSegment}
+                    onDeleteSegment={handleDeleteRouteSegment}
+                    onRenameSegment={handleRenameRouteSegment}
+                    onAddPointToActiveSegment={handleAddPointToActiveSegment}
+                    onRemovePointFromActiveSegment={handleRemovePointFromActiveSegment}
+                    onUndoPointInActiveSegment={handleUndoPointInActiveSegment}
+                    onClearActiveSegment={handleClearActiveSegment}
                   />
 
                   {/* Single-Row Compact Bottom Bar */}

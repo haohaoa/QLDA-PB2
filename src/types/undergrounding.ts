@@ -8,6 +8,12 @@ export interface RouteCoordinatePoint {
   lng: number;
 }
 
+export interface ProjectRouteSegment {
+  id: string;
+  name: string;
+  points: RouteCoordinatePoint[];
+}
+
 export interface CableChamber {
   id: string;
   code: string;
@@ -41,6 +47,13 @@ export interface PlanType {
 
 export type ProjectStatus = 'in_progress' | 'paused' | 'completed';
 
+export interface ContractorRouteSpan {
+  id: string;
+  startPointId: string;
+  endPointId: string;
+  routePoints: RouteCoordinatePoint[];
+}
+
 export interface ProjectContractor {
   id: string;
   name: string;
@@ -48,6 +61,7 @@ export interface ProjectContractor {
   startPointId: string;
   endPointId: string;
   routePoints: RouteCoordinatePoint[];
+  segments?: ContractorRouteSpan[];
   totalLengthM: number;
   totalChambers: number;
   contractValueVND: number;
@@ -80,6 +94,7 @@ export interface UndergroundProject {
   endPointName: string; // Điểm kết thúc (VD: Giao lộ Tố Hữu)
   currentWorkLocation: string; // Đang thi công đến đâu
   points: RouteCoordinatePoint[]; // Điểm đầu, các điểm cua, điểm cuối
+  routeSegments?: ProjectRouteSegment[]; // Nhiều tuyến / đoạn rời nhau trong cùng 1 dự án
   chambers: CableChamber[];
   photos: RouteInspectionPhoto[];
   contractors?: ProjectContractor[];
